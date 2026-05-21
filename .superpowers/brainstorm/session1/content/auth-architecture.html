@@ -1,0 +1,60 @@
+<h2>Auth Architecture: Ensuring Consistency</h2>
+<p class="subtitle">Both login methods will now share the same validation and database logic.</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Current: Fragmented Logic</div>
+    <div class="mockup-body">
+      <div style="padding: 15px; border: 2px dashed #ff4d4d; border-radius: 8px;">
+        <p style="color: #ff4d4d; font-weight: bold;">API Route (/api/auth/login)</p>
+        <div class="label">Logic A</div>
+        <p style="font-size: 11px;">Uses 'password' field (WRONG)</p>
+        <p style="font-size: 11px;">Generic Error "Something went wrong"</p>
+      </div>
+      <div style="margin: 10px 0; text-align: center; color: #666;">vs</div>
+      <div style="padding: 15px; border: 2px dashed #ff4d4d; border-radius: 8px;">
+        <p style="color: #ff4d4d; font-weight: bold;">NextAuth (signIn)</p>
+        <div class="label">Logic B</div>
+        <p style="font-size: 11px;">Uses 'passwordHash' (CORRECT)</p>
+        <p style="font-size: 11px;">Throws generic errors</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Proposed: Unified Logic</div>
+    <div class="mockup-body">
+      <div style="padding: 15px; border: 2px solid #34a853; border-radius: 8px; background: #e6f4ea;">
+        <p style="color: #34a853; font-weight: bold;">Shared Auth Service</p>
+        <div class="label">lib/auth.ts -> validateUser()</div>
+        <ul style="font-size: 11px; margin-left: 15px;">
+          <li>Validates email format</li>
+          <li>Checks passwordHash in DB</li>
+          <li>Returns specific user object</li>
+          <li>Throws semantic errors (e.g. USER_NOT_FOUND)</li>
+        </ul>
+      </div>
+      <div style="display: flex; justify-content: space-around; margin-top: 15px;">
+        <div style="padding: 8px; border: 1px solid #34a853; border-radius: 4px; font-size: 10px; width: 40%; text-align: center;">API Route</div>
+        <div style="padding: 8px; border: 1px solid #34a853; border-radius: 4px; font-size: 10px; width: 40%; text-align: center;">NextAuth</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="unified" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Unified Auth Service (Recommended)</h3>
+      <p>Create a shared function that handles the DB lookup and password verification. Both routes use it, ensuring zero drift.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="parallel" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Fixed Parallel Logic</h3>
+      <p>Keep the routes separate but fix the bugs in each. Faster to implement but harder to maintain if logic changes later.</p>
+    </div>
+  </div>
+</div>

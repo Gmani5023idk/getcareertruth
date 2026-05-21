@@ -1,0 +1,15 @@
+/* Light theme variables */
+:root.light {
+  --color-bg: #ffffff;
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-text-primary: #1f2937;
+  --color-text-secondary: #6b7280;
+  --color-primary: #1565C0;
+  --color-accent: #00ACC1;
+}
+
+/* Diagnostic rule to force light background - more specific */
+:root.light body {
+  background-color: #ffffff !important; /* Directly setting to white */
+}

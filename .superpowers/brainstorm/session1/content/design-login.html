@@ -1,0 +1,65 @@
+<h2>Design Part 1: Unified Auth Service (Bug #3)</h2>
+<p class="subtitle">Extracting authentication logic to ensure consistency across all login methods.</p>
+
+<div class="mockup">
+  <div class="mockup-header">lib/auth.ts</div>
+  <div class="mockup-body">
+    <pre style="font-size: 11px; background: #f4f4f4; padding: 10px; border-radius: 4px;">
+// New shared validation function
+export async function validateUser(email, password) {
+  const user = await prisma.user.findUnique({ 
+    where: { email },
+    include: { studentProfile: true, ... }
+  });
+
+  if (!user) throw new Error("USER_NOT_FOUND");
+  if (!user.passwordHash) throw new Error("OAUTH_USER_ONLY");
+
+  const isValid = await bcrypt.compare(password, user.passwordHash);
+  if (!isValid) throw new Error("INVALID_PASSWORD");
+
+  return user;
+}
+
+// NextAuth authorize() will now look like this:
+async authorize(credentials) {
+  try {
+    const user = await validateUser(credentials.email, credentials.password);
+    return formatUserForSession(user);
+  } catch (e) {
+    return null; // NextAuth expects null on failure
+  }
+}
+    </pre>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">app/api/auth/login/route.ts</div>
+  <div class="mockup-body">
+    <pre style="font-size: 11px; background: #f4f4f4; padding: 10px; border-radius: 4px;">
+export async function POST(req) {
+  try {
+    const { email, password } = await req.json();
+    const user = await validateUser(email, password);
+    return NextResponse.json({ user: formatUser(user) });
+  } catch (error) {
+    // Map internal error codes to user-friendly messages
+    const message = error.message === "USER_NOT_FOUND" 
+      ? "No account found with this email" 
+      : "Invalid password";
+    return NextResponse.json({ error: message }, { status: 401 });
+  }
+}
+    </pre>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Key Improvements:</h3>
+  <ul>
+    <li><strong>Bug Fix:</strong> Uses <code>passwordHash</code> consistently.</li>
+    <li><strong>Granular Errors:</strong> Distinguishes between "Email not found" and "Wrong password".</li>
+    <li><strong>Safety:</strong> Prevents credentials-login for users who only signed up via Google.</li>
+  </ul>
+</div>

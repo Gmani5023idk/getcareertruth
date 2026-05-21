@@ -1,0 +1,359 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                 String                    @id @default(cuid())
+  email              String                    @unique
+  phone              String?
+  passwordHash       String?
+  googleId           String?                   @unique
+  role               Role?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  isEmailVerified    Boolean                   @default(false)
+  profilePhoto       String?
+  emailVerified      DateTime?
+  isDeleted          Boolean                   @default(false)
+  accounts           Account[]
+  bookingsAsEmployee Booking[]                 @relation("EmployeeBookings")
+  bookingsAsParent   Booking[]                 @relation("ParentBookings")
+  bookingsAsStudent  Booking[]                 @relation("StudentBookings")
+  sentMessages       ChatMessage[]             @relation("SentMessages")
+  conversations      ConversationParticipant[]
+  employeeProfile    EmployeeProfile?
+  parentProfile      ParentProfile?
+  sessions           Session[]
+  studentProfile     StudentProfile?
+  mentorProfile      MentorProfile?
+  mentorApplications MentorApplication[]
+}
+
+model StudentProfile {
+  id                String        @id @default(cuid())
+  userId            String        @unique
+  fullName          String
+  educationType     EducationType
+  schoolName        String?
+  className         String?
+  stream            String?
+  collegeName       String?
+  degree            String?
+  branch            String?
+  currentYear       String?
+  collegeEmail      String?
+  isCollegeVerified Boolean       @default(false)
+  city              String?
+  targetIndustries  String[]
+  targetCompanies   String[]
+  bio               String?       @db.VarChar(150)
+  savedEmployees    String[]
+  createdAt         DateTime      @default(now())
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmployeeProfile {
+  id                     String             @id @default(cuid())
+  userId                 String             @unique
+  fullName               String
+  company                String
+  jobTitle               String
+  industry               String
+  yearsExp               Int
+  college                String?
+  degree                 String?
+  graduationYear         Int?
+  bio                    String?            @db.VarChar(300)
+  topics                 String[]
+  pricePerCall           Int                @default(29900)
+  linkedInUrl            String?
+  linkedInTitle          String?
+  linkedInCompany        String?
+  isLinkedInVerified     Boolean            @default(false)
+  companyEmail           String?
+  isCompanyEmailVerified Boolean            @default(false)
+  idDocumentUrl          String?
+  idDocumentType         String?
+  isIdVerified           Boolean            @default(false)
+  isTeamVerified         Boolean            @default(false)
+  verificationStatus     VerificationStatus @default(PENDING)
+  availabilitySlots      Json
+  rating                 Float              @default(0)
+  totalCalls             Int                @default(0)
+  totalEarned            Int                @default(0)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  idDocumentNumber       String?
+  payoutDetails          String?
+  payoutMethod           String?
+  verificationMethod     String?
+  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews                Review[]
+  transcripts            Transcript[]
+}
+
+model ParentProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  fullName      String
+  city          String?
+  childStage    String?
+  childCourse   String?
+  concerns      String[]
+  openToConnect Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Booking {
+  id                     String        @id @default(cuid())
+  studentId              String?
+  parentId               String?
+  employeeId             String
+  scheduledAt            DateTime
+  durationMins           Int           @default(15)
+  status                 BookingStatus @default(PENDING_CONFIRM)
+  topic                  String?       @db.VarChar(300)
+  meetingLink            String?
+  razorpayOrderId        String?
+  razorpayPaymentId      String?
+  razorpayPayoutId       String?
+  amountPaid             Int
+  platformFee            Int           @default(0)
+  employeePayout         Int           @default(0)
+  payoutStatus           PayoutStatus  @default(PENDING)
+  disputeStatus          DisputeStatus @default(NONE)
+  studentMarkedComplete  Boolean       @default(false)
+  employeeMarkedComplete Boolean       @default(false)
+  completedAt            DateTime?
+  cancelledAt            DateTime?
+  cancelReason           String?
+  reminderSentAt         DateTime?
+  refundAmount           Int?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  conversationId         String?       @unique
+  notes                  String?       @db.VarChar(500)
+  conversation           Conversation? @relation(fields: [conversationId], references: [id])
+  employee               User          @relation("EmployeeBookings", fields: [employeeId], references: [id])
+  parent                 User?         @relation("ParentBookings", fields: [parentId], references: [id])
+  student                User?         @relation("StudentBookings", fields: [studentId], references: [id])
+  review                 Review?
+  transcript             Transcript?
+  payoutAttempts         PayoutAttempt[]
+
+  @@unique([employeeId, scheduledAt])
+}
+
+model PayoutAttempt {
+  id               String   @id @default(cuid())
+  bookingId        String
+  booking          Booking  @relation(fields: [bookingId], references: [id])
+  attemptedAt      DateTime @default(now())
+  status           String
+  razorpayResponse Json?
+}
+
+model Review {
+  id         String          @id @default(cuid())
+  bookingId  String          @unique
+  employeeId String
+  rating     Int
+  text       String?         @db.VarChar(300)
+  isPublic   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  booking    Booking         @relation(fields: [bookingId], references: [id])
+  employee   EmployeeProfile @relation(fields: [employeeId], references: [id])
+}
+
+model Transcript {
+  id                  String          @id @default(cuid())
+  bookingId           String          @unique
+  employeeId          String
+  content             String          @db.VarChar(5000)
+  cloudinaryUrl       String?
+  summary             String?         @db.VarChar(1000)
+  keyPoints           String[]
+  actionItems         String[]
+  sentiment           String?
+  sentimentConfidence Float?
+  topics              String[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  booking             Booking         @relation(fields: [bookingId], references: [id])
+  employee            EmployeeProfile @relation(fields: [employeeId], references: [id])
+}
+
+model Conversation {
+  id           String                    @id @default(cuid())
+  type         ConversationType
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  booking      Booking?
+  messages     ChatMessage[]
+  participants ConversationParticipant[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime     @default(now())
+  lastRead       DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+}
+
+model ChatMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String       @db.VarChar(1000)
+  type           MessageType  @default(TEXT)
+  attachmentUrl  String?
+  attachmentName String?
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum Role {
+  STUDENT
+  EMPLOYEE
+  PARENT
+  ADMIN
+}
+
+enum EducationType {
+  SCHOOL
+  COLLEGE
+}
+
+enum VerificationStatus {
+  PENDING
+  IN_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  PENDING_CONFIRM
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  EXPIRED
+}
+
+enum DisputeStatus {
+  NONE
+  OPEN
+  RESOLVED_PAY
+  RESOLVED_REFUND
+}
+
+enum ApplicationStatus {
+  PENDING_ADMIN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+// -----------------------------------------------------------------------------
+// Mentor application & onboarding data
+// -----------------------------------------------------------------------------
+model MentorApplication {
+  id                String            @id @default(cuid())
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  collegeName       String
+  currentYear       String
+  branch            String
+  domain            String
+  bio               String?
+  linkedinUrl       String?
+  sessionRate       Int // senior-set, ₹ per session
+  // Payout details — MANDATORY before admin can approve
+  bankAccountNumber String?
+  bankIFSC          String?
+  upiId             String?
+  status            ApplicationStatus @default(PENDING_ADMIN_REVIEW)
+  rejectionReason   String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+model MentorProfile {
+  id                String @id @default(cuid())
+  userId            String @unique
+  user              User   @relation(fields: [userId], references: [id])
+  photoUrl          String?
+  bio               String?
+  availabilitySlots Json? // Format: [{start:'2026-07-01T09:00:00Z', end:'2026-07-01T10:00:00Z'}]
+  rating            Float  @default(0)
+  reviewsCount      Int    @default(0)
+}
+
+enum ConversationType {
+  STUDENT_STUDENT
+  PARENT_PARENT
+  STUDENT_EMPLOYEE
+  PARENT_EMPLOYEE
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+}

@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Select-String -Path 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Pattern 'backgroundColor.*:' -AllMatches | Select-Object -First 10\")",
+      "Bash(findstr \"080D\" \"c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html\")",
+      "Bash(powershell -Command \"Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' | Select-String -Pattern 'rgba\\\\\\(59,158,255' | Select-Object -First 1\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).Substring\\(0, 5000\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).IndexOf\\('080D1A'\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).Substring\\(239900, 300\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).IndexOf\\('rgba\\(59,158,255,0.18\\)'\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).Substring\\(240200, 200\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).IndexOf\\('rgba\\(10,18,40,0.75\\)'\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).Substring\\(244150, 200\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).Substring\\(244500, 150\\)\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\fix-theme.ps1\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).IndexOf\\('isDark?'\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).Substring\\(240180, 80\\)\")",
+      "Bash(del \"c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\fix-theme.ps1\")",
+      "Bash(powershell -Command \"Remove-Item 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\fix-theme.ps1'\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).IndexOf\\('rgba\\(255,255,255,0.42\\)'\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).Substring\\(244980, 80\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).Substring\\(244590, 80\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).IndexOf\\('linear-gradient\\(140deg'\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).Substring\\(240450, 150\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).IndexOf\\('1px solid rgba\\(59,158,255,0.18\\)'\\)\")",
+      "Bash(powershell -Command \"\\(Get-Content 'c:\\\\Users\\\\Manikanta\\\\OneDrive\\\\Desktop\\\\hermes\\\\getcareertruth\\\\public\\\\journey-arc.html' -Raw\\).Substring\\(240610, 80\\)\")",
+      "Skill(superpowers:using-superpowers)",
+      "Skill(superpowers:using-superpowers:*)"
+    ]
+  }
+}

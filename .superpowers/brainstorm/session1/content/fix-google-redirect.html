@@ -1,0 +1,42 @@
+## Design: Fixing Google OAuth Callback Redirect Loop
+
+The issue is that Google OAuth users are not having their `role` field populated in the JWT/Session because the Google Provider configuration is missing the logic to link or create the user with a `role`.
+
+### Fix: NextAuth Callbacks
+
+We need to add a `signIn` callback to `lib/auth.ts` to handle role assignment for new Google users, or retrieve it for returning users.
+
+```typescript
+// lib/auth.ts
+
+// ... inside NextAuth config object ...
+  callbacks: {
+    async signIn({ user, account, profile }) {
+      if (account?.provider === 'google') {
+        const dbUser = await prisma.user.findUnique({ where: { email: user.email! } });
+        
+        if (dbUser) {
+          // Assign role to user object if missing
+          user.role = dbUser.role;
+          return true;
+        } else {
+          // New Google User - Needs registration
+          // Option: Redirect to a "Complete Signup" page instead of login
+          return true; 
+        }
+      }
+      return true;
+    },
+    // ... jwt and session callbacks
+  },
+```
+
+### Clarifying Question:
+When a new user logs in with Google, they don't have a role yet (Student/Employee/Parent). Currently, the app redirects to `/dashboard/student` by default.
+
+Should we:
+1.  **Redirect them to a "Complete your profile" page** (e.g., `/onboarding`) where they select their role?
+2.  **Default them to 'STUDENT'** (if they are a student)?
+3.  **Something else?**
+
+How should new Google users be handled for role assignment?

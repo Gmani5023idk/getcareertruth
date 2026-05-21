@@ -1,0 +1,123 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
+
+:root {
+  /* ── BRAND COLORS ── */
+  --color-primary: #1A5FB4;        /* Primary Dark Blue */
+  --color-accent: #00B4D8;         /* Accent Teal/Cyan */
+  --color-bg: #0A0F1E;             /* Deep Navy (background base) */
+  --color-surface: #0F1629;        /* Surface cards */
+  --color-border: #1E2A45;         /* Border/divider */
+  --color-text-primary: #F0F4FF;  /* Text primary */
+  --color-text-secondary: #8A9BBE; /* Text secondary */
+  
+  /* ── SHADOWS ── */
+  --shadow-xs: 0 1px 2px rgba(10, 15, 30, 0.2);
+  --shadow-sm: 0 2px 8px rgba(10, 15, 30, 0.3);
+  --shadow-md: 0 4px 16px rgba(10, 15, 30, 0.4);
+  --shadow-lg: 0 8px 24px rgba(10, 15, 30, 0.5);
+  --shadow-glow: 0 0 20px rgba(0, 180, 216, 0.15);
+}
+
+@theme {
+  --color-primary: var(--color-primary);
+  --color-accent: var(--color-accent);
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-border: var(--color-border);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-glow: var(--shadow-glow);
+  
+  --font-body: "Inter", sans-serif;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── CUSTOM UTILITY CLASSES ── */
+.text-balance {
+  text-wrap: balance;
+}
+
+/* ── GRADIENT BUTTON ── */
+.btn-gradient {
+  background: linear-gradient(135deg, #1A5FB4, #00B4D8);
+  color: #F0F4FF;
+  transition: all 200ms ease;
+}
+
+.btn-gradient:hover {
+  background: linear-gradient(135deg, #1A5FB4, #00B4D8);
+  box-shadow: 0 0 20px rgba(0, 180, 216, 0.15);
+}
+
+/* ── CARD STYLES ── */
+.card {
+  background-color: #0F1629;
+  border: 1px solid #1E2A45;
+  border-radius: 12px;
+  padding: 24px;
+  transition: all 200ms ease;
+}
+
+.card:hover {
+  border-color: #1A5FB4;
+  box-shadow: 0 0 20px rgba(0, 180, 216, 0.15);
+}
+
+/* ── NAVBAR GLASS EFFECT ── */
+.navbar-glass {
+  background: rgba(10, 15, 30, 0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid #1E2A45;
+}
+
+/* ── GRADIENT ICON CONTAINER ── */
+.gradient-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #1A5FB4, #00B4D8);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── THEME TOGGLE BUTTON ── */
+.theme-toggle-btn {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--color-text-primary);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-toggle-btn:hover {
+  background-color: rgba(26, 95, 180, 0.1);
+  border: 1px solid var(--color-primary);
+  box-shadow: 0 0 10px rgba(26, 95, 180, 0.3);
+}
