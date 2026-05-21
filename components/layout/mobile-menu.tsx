@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
@@ -10,7 +10,6 @@ import {
   BookOpen, 
   User, 
   LogOut,
-  ChevronRight,
   ShieldCheck,
   MessageSquare
 } from 'lucide-react';
@@ -27,15 +26,23 @@ interface MobileMenuProps {
 export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
   const pathname = usePathname();
 
-  // Lock body scroll when open
+  // Lock body scroll when open; escape key to close
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose();
+  }, [onClose]);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      document.addEventListener('keydown', handleKeyDown);
     } else {
       document.body.style.overflow = 'unset';
     }
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isOpen]);
+    return () => {
+      document.body.style.overflow = 'unset';
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, handleKeyDown]);
 
   const navLinks = [
     { label: 'Home', href: '/', icon: Home },
@@ -65,7 +72,13 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="absolute top-0 left-0 bottom-0 w-[280px] bg-bg border-r border-border shadow-2xl flex flex-col"
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={{ left: 0.5, right: 0 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.x < -80) onClose();
+            }}
+            className="absolute top-0 left-0 bottom-0 w-[280px] bg-bg border-r border-border shadow-2xl flex flex-col touch-pan-y"
           >
             {/* Header */}
             <div className="p-6 border-b border-border flex items-center justify-between bg-surface-2/50">
@@ -80,7 +93,7 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             </div>
 
             {/* Links */}
-            <div className="flex-1 overflow-y-auto py-8 px-4 space-y-2 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto py-8 px-4 space-y-2 custom-scrollbar" style={{ overscrollBehavior: 'contain' }}>
                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-text-muted mb-6 ml-4">Primary Navigation</p>
                {navLinks.map((link) => {
                  const isActive = pathname === link.href;

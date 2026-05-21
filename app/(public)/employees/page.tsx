@@ -1,11 +1,18 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Filter, MapPin, Briefcase, ChevronDown, Check, X, Star } from 'lucide-react';
+import { Search, Filter, MapPin, Briefcase, ChevronDown, Check, X, Star, Menu, ArrowRight } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import TiltCard from '@/components/animations/TiltCard';
+import ScrollReveal, { RevealChild } from '@/components/animations/ScrollReveal';
 import ProfilePicture from '@/components/ui/ProfilePicture';
+import ThemeToggle from '@/components/theme-toggle';
+import { motion } from 'framer-motion';
 import Link from 'next/link';
+import Logo from '@/components/ui/Logo';
+import StickyNav from '@/components/animations/StickyNav';
+import MobileMenu from '@/components/layout/mobile-menu';
 
 // Mock data
 const mockEmployees = [
@@ -25,6 +32,7 @@ export default function EmployeeDirectoryPage() {
   const [selectedIndustry, setSelectedIndustry] = useState('All');
   const [selectedPriceRange, setSelectedPriceRange] = useState('All');
   const [showFilters, setShowFilters] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const filteredEmployees = useMemo(() => {
     return mockEmployees.filter(emp => {
@@ -46,8 +54,62 @@ export default function EmployeeDirectoryPage() {
 
   return (
     <div className="min-h-screen bg-bg text-text-primary pb-20">
+      {/* Navbar */}
+      <StickyNav>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-[64px] sm:h-[72px]">
+            <Logo />
+            <div className="hidden md:flex items-center space-x-8">
+              {[
+                { name: 'How It Works', href: '/how-it-works' },
+                { name: 'For Students', href: '/students' },
+                { name: 'For Employees', href: '/for-employees' },
+                { name: 'For Parents', href: '/parents' },
+                { name: 'Pricing', href: '/pricing' },
+              ].map((item) => (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className="text-sm font-medium text-text-secondary hover:text-text-primary transition-all relative group"
+                >
+                  {item.name}
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-accent transition-all duration-300 group-hover:w-full"></span>
+                </Link>
+              ))}
+            </div>
+            <div className="hidden md:flex items-center space-x-4">
+              <Link
+                href="/login"
+                className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+              >
+                Login
+              </Link>
+              <ThemeToggle />
+              <Link
+                href="/get-started"
+                className="px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-primary to-accent rounded-xl hover:shadow-accent transition-all hover:-translate-y-0.5 active:translate-y-0"
+              >
+                Get Started
+              </Link>
+            </div>
+            <div className="md:hidden flex items-center gap-3">
+              <ThemeToggle />
+              <button
+                onClick={() => setIsMenuOpen(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl bg-surface border border-border text-text-secondary hover:text-primary transition-all"
+                aria-label="Open menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <MobileMenu isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+            </div>
+          </div>
+        </div>
+      </StickyNav>
+
       {/* Search Header */}
-      <div className="bg-surface border-b border-border sticky top-0 z-30 pt-6 sm:pt-10 pb-6 shadow-sm">
+      <ScrollReveal direction="up" duration={0.5}>
+      <div className="bg-surface border-b border-border pt-6 sm:pt-10 pb-6 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-6">
             <div>
@@ -110,14 +172,17 @@ export default function EmployeeDirectoryPage() {
           </div>
         </div>
       </div>
+      </ScrollReveal>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        <ScrollReveal direction="up" delay={0.1} duration={0.4}>
         <div className="flex items-center justify-between mb-8">
            <p className="text-xs sm:text-sm font-bold text-text-secondary uppercase tracking-[0.15em]">
              Displaying <span className="text-primary">{filteredEmployees.length}</span> Professionals
            </p>
         </div>
+        </ScrollReveal>
 
         {filteredEmployees.length === 0 ? (
           <Card className="p-20 text-center border-dashed border-2">
@@ -128,9 +193,12 @@ export default function EmployeeDirectoryPage() {
             <p className="text-text-muted">Try adjusting your filters or search terms.</p>
           </Card>
         ) : (
+          <ScrollReveal stagger staggerDelay={0.06}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {filteredEmployees.map((employee) => (
-              <Card key={employee.id} className="p-0 overflow-hidden group hover:border-primary/30 hover:shadow-premium transition-all duration-500 flex flex-col border-2 border-transparent">
+              <RevealChild key={employee.id}>
+              <TiltCard intensity={5} glare={false}>
+              <Card className="p-0 overflow-hidden group hover:border-primary/30 hover:shadow-premium transition-all duration-500 flex flex-col border-2 border-transparent">
                 <Link href={`/employees/${employee.id}`} className="p-6 sm:p-8 flex-1">
                   <div className="flex items-start gap-4 sm:gap-6 mb-6">
                     <div className="relative flex-shrink-0">
@@ -200,8 +268,11 @@ export default function EmployeeDirectoryPage() {
                   </Link>
                 </div>
               </Card>
+              </TiltCard>
+              </RevealChild>
             ))}
           </div>
+          </ScrollReveal>
         )}
       </div>
     </div>

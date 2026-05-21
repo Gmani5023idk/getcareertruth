@@ -2,13 +2,16 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle, Star, ArrowRight, Shield, Clock, Users, Zap, Search, Calendar, Award, Menu } from 'lucide-react';
+import { CheckCircle, Star, ArrowRight, Shield, Clock, Users, Zap, Search, Calendar, Award, Menu, Sparkles } from 'lucide-react';
 import Image from 'next/image';
 import ThemeToggle from '@/components/ui/ThemeToggle';
 import { motion } from 'framer-motion';
 import Logo from '@/components/ui/Logo';
 import MobileMenu from '@/components/layout/mobile-menu';
 import Card from '@/components/ui/Card';
+import GlassCard from '@/components/animations/GlassCard';
+import TiltCard from '@/components/animations/TiltCard';
+import StickyNav from '@/components/animations/StickyNav';
 
 export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -30,7 +33,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-bg selection:bg-accent/30 overflow-x-hidden">
       {/* Navbar */}
-      <nav className="sticky top-0 z-50 glass border-b border-border">
+      <StickyNav>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-[64px] sm:h-[72px]">
             {/* Logo */}
@@ -95,7 +98,7 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
-      </nav>
+      </StickyNav>
 
       {/* Hero Section */}
       <section className="relative pt-12 sm:pt-20 pb-20 sm:pb-32 overflow-hidden">
@@ -185,29 +188,30 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {[
-              { title: 'Glamorised Advice', desc: 'Influencers sell dreams and high CTCs, not the actual daily grind.', icon: '🔥' },
-              { title: 'Outdated Wisdom', desc: 'Faculty advice often lags 5-10 years behind current industry trends.', icon: '🕰️' },
-              { title: 'Zero Verification', desc: 'LinkedIn is full of "ex-Googlers" who never actually worked there.', icon: '🛡️' },
-              { title: 'Skills Gap', desc: 'College syllabus focuses on theory while companies hire for execution.', icon: '📚' },
-              { title: 'Wasted Years', desc: 'Students spend 3 years chasing a career they end up hating in 3 months.', icon: '⏳' },
-              { title: 'Hidden Network', desc: 'The best roles are filled via referrals you can\'t access without a connect.', icon: '🚪' },
-            ].map((item, i) => (
-              <motion.div 
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="group p-8 rounded-3xl bg-surface border border-border hover:border-accent/50 hover:shadow-premium transition-all min-h-[220px]"
-              >
-                <div className="w-14 h-14 bg-bg rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform shadow-sm">
-                  {item.icon}
-                </div>
-                <h3 className="text-xl font-bold text-text-primary mt-6 mb-3 group-hover:text-accent transition-colors">{item.title}</h3>
-                <p className="text-text-secondary leading-relaxed text-sm font-medium">{item.desc}</p>
-              </motion.div>
-            ))}
+              {[
+                { title: 'Glamorised Advice', desc: 'Influencers sell dreams and high CTCs, not the actual daily grind.', icon: '🔥' },
+                { title: 'Outdated Wisdom', desc: 'Faculty advice often lags 5-10 years behind current industry trends.', icon: '🕰️' },
+                { title: 'Zero Verification', desc: 'LinkedIn is full of "ex-Googlers" who never actually worked there.', icon: '🛡️' },
+                { title: 'Skills Gap', desc: 'College syllabus focuses on theory while companies hire for execution.', icon: '📚' },
+                { title: 'Wasted Years', desc: 'Students spend 3 years chasing a career they end up hating in 3 months.', icon: '⏳' },
+                { title: 'Hidden Network', desc: 'The best roles are filled via referrals you can\'t access without a connect.', icon: '🚪' },
+              ].map((item, i) => (
+              <TiltCard key={i} intensity={6} glare={false}>
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: i * 0.1 }}
+                  className="group p-6 sm:p-8 rounded-3xl bg-surface border border-border hover:border-accent/50 hover:shadow-premium transition-all sm:min-h-[220px]"
+                >
+                  <div className="w-14 h-14 bg-bg rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform shadow-sm">
+                    {item.icon}
+                  </div>
+                  <h3 className="text-xl font-bold text-text-primary mt-6 mb-3 group-hover:text-accent transition-colors">{item.title}</h3>
+                  <p className="text-text-secondary leading-relaxed text-sm font-medium">{item.desc}</p>
+                </motion.div>
+              </TiltCard>
+              ))}
           </div>
         </div>
       </section>

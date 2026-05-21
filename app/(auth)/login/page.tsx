@@ -74,7 +74,7 @@ export default function LoginPage() {
            </p>
         </div>
 
-        <Card className="p-8 sm:p-10 shadow-premium border-primary/10">
+        <Card className="p-6 sm:p-8 md:p-10 shadow-premium border-primary/10">
            {!showForgotPassword ? (
              <div className="space-y-8">
                 {/* Social Login */}

@@ -139,7 +139,7 @@ export default function ParentSignupPage() {
             ))}
           </div>
 
-          <Card className="p-10">
+          <Card className="p-6 sm:p-8 md:p-10">
             <h1 className="text-2xl font-display font-bold text-text-primary mb-2">
               {step === 1 && 'Create your account'}
               {step === 2 && 'Tell us about your child'}

@@ -1,8 +1,12 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import Providers from '@/components/providers/SessionProvider';
-import { ThemeProvider } from '@/components/providers/ThemeProvider';
+import ThemeProvider from '@/components/providers/ThemeProvider';
 import BottomNav from '@/components/layout/bottom-nav';
+import SmoothScrollProvider from '@/components/animations/SmoothScrollProvider';
+import RouteTransitionProvider from '@/components/animations/RouteTransitionProvider';
+import ScrollProgressBar from '@/components/animations/ScrollProgressBar';
+import ParticleBackground from '@/components/animations/ParticleBackground';
 
 export const metadata: Metadata = {
   title: 'GetCareerTruth - Career advice you can actually trust',
@@ -34,8 +38,14 @@ export default function RootLayout({
           href="#main-content" 
           className="sr-only focus:not-sr-only fixed top-4 left-4 z-[300] px-6 py-3 bg-primary text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-2xl"
         >
-          Skip to Intelligence
+          Skip to main content
         </a>
+
+        {/* Global scroll progress bar */}
+        <ScrollProgressBar />
+
+        {/* Subtle particle background */}
+        <ParticleBackground particleCount={20} connectionDistance={100} speed={0.2} />
 
         <Providers>
           <ThemeProvider
@@ -44,14 +54,18 @@ export default function RootLayout({
             enableSystem={false}
             disableTransitionOnChange={false}
           >
-            <div className="flex flex-col min-h-screen">
-              <main id="main-content" className="flex-1 pb-16 sm:pb-0">
-                {children}
-              </main>
-              
-              {/* Global Mobile Bottom Navigation */}
-              <BottomNav />
-            </div>
+            <SmoothScrollProvider>
+              <RouteTransitionProvider>
+                <div className="flex flex-col min-h-screen relative z-10">
+                  <main id="main-content" className="flex-1 pb-16 sm:pb-0">
+                    {children}
+                  </main>
+                  
+                  {/* Global Mobile Bottom Navigation */}
+                  <BottomNav />
+                </div>
+              </RouteTransitionProvider>
+            </SmoothScrollProvider>
           </ThemeProvider>
         </Providers>
 

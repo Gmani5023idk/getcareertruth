@@ -191,7 +191,7 @@ export default function EmployeeDashboard() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
         {/* Mobile-First Earnings Card (Priority) */}
         <section className="mb-10 sm:hidden">
            <Card className="p-8 bg-gradient-to-br from-primary to-accent border-none shadow-2xl relative overflow-hidden">
@@ -223,7 +223,7 @@ export default function EmployeeDashboard() {
         </div>
 
         {/* Stats Grid - 2x2 on Mobile */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8 mb-12 sm:mb-16">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-8 mb-8 sm:mb-12 lg:mb-16">
           {[
             { label: 'Revenue', value: `₹${user.totalEarned}`, icon: DollarSign, color: 'text-success', bg: 'bg-success/10' },
             { label: 'Engagements', value: user.totalCalls, icon: Users, color: 'text-primary', bg: 'bg-primary/10' },
@@ -242,9 +242,9 @@ export default function EmployeeDashboard() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
           {/* Main Feed */}
-          <div className="lg:col-span-2 space-y-12 sm:space-y-16">
+          <div className="lg:col-span-2 space-y-8 sm:space-y-12 lg:space-y-16">
             
             {/* Tab Selection */}
             <div className="flex p-1.5 bg-surface-2 rounded-2xl w-fit shadow-inner border border-border/50">

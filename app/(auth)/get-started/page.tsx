@@ -62,7 +62,7 @@ export default function GetStartedPage() {
                 key={role.id}
                 onClick={() => setSelectedRole(role.id)}
                 className={`
-                  relative flex flex-col items-center sm:items-start text-center sm:text-left p-8 sm:p-10 rounded-3xl border-2 transition-all duration-500 w-full group
+                  relative flex flex-col items-center sm:items-start text-center sm:text-left p-6 sm:p-8 md:p-10 rounded-3xl border-2 transition-all duration-500 w-full group
                   ${isSelected 
                     ? 'bg-surface border-primary shadow-2xl scale-[1.02]' 
                     : 'bg-surface/50 border-border hover:border-primary/40 hover:bg-surface shadow-sm'}

@@ -130,9 +130,9 @@ export default function StudentDashboard() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
         {/* Welcome */}
-        <div className="mb-10 sm:mb-16">
+        <div className="mb-8 sm:mb-12 lg:mb-16">
            <div className="flex items-center gap-3 mb-2">
               <h1 className="text-3xl sm:text-5xl font-black text-text-primary tracking-tight">
                 Status: <span className="text-primary italic">Active</span>
@@ -145,7 +145,7 @@ export default function StudentDashboard() {
         </div>
 
         {/* Stats - 2 Column on Mobile */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-12 sm:mb-16">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-8 mb-8 sm:mb-12 lg:mb-16">
           {[
             { label: 'Upcoming', value: '1', icon: Calendar, color: 'text-primary', bg: 'bg-primary/10' },
             { label: 'Total Hours', value: '0', icon: Clock, color: 'text-accent', bg: 'bg-accent/10' },
@@ -167,9 +167,9 @@ export default function StudentDashboard() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8 lg:gap-12">
           {/* Main Feed */}
-          <div className="lg:col-span-2 space-y-10 sm:space-y-16">
+          <div className="lg:col-span-2 space-y-8 sm:space-y-12 lg:space-y-16">
             
             {/* Action Selection */}
             <div className="flex p-1.5 bg-surface-2 rounded-2xl w-fit shadow-inner border border-border/50 overflow-x-auto no-scrollbar max-w-full">
