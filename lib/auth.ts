@@ -77,7 +77,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return {
             id: user.id,
             email: user.email,
-            role: user.role,
+            role: user.role || 'STUDENT',
             name: user.studentProfile?.fullName ||
                   user.employeeProfile?.fullName ||
                   user.parentProfile?.fullName ||
@@ -123,7 +123,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
        if (token.email && !token.role) {
          const dbUser = await prisma.user.findUnique({ where: { email: token.email } });
          if (dbUser) {
-           token.role = dbUser.role;
+           token.role = dbUser.role || 'STUDENT';
            // Clear the new user flag if we found a role
            token.isNewGoogleUser = false;
          }

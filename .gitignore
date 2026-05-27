@@ -42,4 +42,29 @@ next-env.d.ts
 
 .vercel
 .env.local
-".env.local" 
+".env.local"
+
+# Kiro workspace
+.kiro/
+
+# VS Code workspace settings
+.vscode/settings.json
+
+# Test artifacts
+playwright-report/
+screenshots/
+test-results/
+test-results.json
+
+# Generated service worker
+public/sw.js
+public/sw.js.map
+
+# Build artifacts
+nul
+*.log
+dev-server*.log
+run-test-out.ps1
+
+# Misc
+everything-claude-code
