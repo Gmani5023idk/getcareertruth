@@ -14,8 +14,9 @@ export async function GET(req: NextRequest) {
       isDeleted: false,
       employeeProfile: {
         isNot: null,
-        isVerified: true,
+        verificationStatus: 'VERIFIED',
       },
+      // Fix 3: Leverage new index on User.role
     };
 
     if (industry && industry !== 'All') {

@@ -3,6 +3,7 @@ import { verifyRazorpayPayment } from '@/lib/razorpay';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { processConfirmedBooking } from '@/lib/bookings';
+import { auditLog, AuditAction } from '@/lib/audit-log';
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,6 +57,16 @@ export async function POST(req: NextRequest) {
         status: 'CONFIRMED',
         razorpayPaymentId: razorpay_payment_id,
       },
+    });
+
+    // Audit log for successful payment
+    await auditLog({
+      userId: userId,
+      action: AuditAction.PAYMENT_SUCCESS,
+      entity: 'Booking',
+      entityId: bookingId,
+      metadata: { paymentId: razorpay_payment_id, orderId: razorpay_order_id, amount: booking.amountPaid },
+      success: true,
     });
 
     // Post-payment actions: Zoom meeting, conversation, emails

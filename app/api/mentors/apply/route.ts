@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
 import { sendEmail } from '@/lib/email';
+import { encrypt } from '@/lib/encryption';
+import { auditLog, AuditAction } from '@/lib/audit-log';
 
 const applySchema = z.object({
   collegeName: z.string().min(2, "College name is too short"),
@@ -36,6 +38,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const validatedData = applySchema.parse(body);
 
+    // Encrypt bank details before storing
     const application = await prisma.mentorApplication.create({
       data: {
         userId: session.user.id,
@@ -46,9 +49,9 @@ export async function POST(req: NextRequest) {
         bio: validatedData.bio,
         linkedinUrl: validatedData.linkedinUrl,
         sessionRate: validatedData.sessionRate,
-        bankAccountNumber: validatedData.bankAccountNumber,
-        bankIFSC: validatedData.bankIFSC,
-        upiId: validatedData.upiId,
+        bankAccountEncrypted: validatedData.bankAccountNumber ? encrypt(validatedData.bankAccountNumber) : null,
+        bankIfscEncrypted: validatedData.bankIFSC ? encrypt(validatedData.bankIFSC) : null,
+        upiEncrypted: validatedData.upiId ? encrypt(validatedData.upiId) : null,
         status: 'PENDING_ADMIN_REVIEW',
       },
     });
@@ -67,6 +70,19 @@ export async function POST(req: NextRequest) {
           <p>Best,<br/>GetCareerTruth Team</p>
         </div>
       `,
+    });
+
+    // Audit log
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip')?.trim() || null;
+    const userAgent = req.headers.get('user-agent');
+    await auditLog({
+      userId: session.user.id,
+      action: AuditAction.USER_REGISTERED,
+      entity: 'MentorApplication',
+      entityId: application.id,
+      metadata: { hasPayoutDetails: true },
+      ipAddress: ip,
+      userAgent,
     });
 
     return NextResponse.json({ id: application.id, status: application.status }, { status: 201 });

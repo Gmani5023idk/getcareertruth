@@ -3,13 +3,25 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
 
+// Accept both old (start/end ISO datetime) and new (dayOfWeek/startTime/endTime) slot formats
+const oldSlotSchema = z.object({
+  start: z.string().datetime(), // ISO 8601
+  end: z.string().datetime(),
+});
+
+const newSlotSchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  startTime: z.string().regex(/^([0-1]\d|2[0-3]):[0-5]\d$/, 'Must be HH:mm in 24h format'),
+  endTime: z.string().regex(/^([0-1]\d|2[0-3]):[0-5]\d$/, 'Must be HH:mm in 24h format'),
+  timezone: z.string().default('Asia/Kolkata'),
+});
+
+const slotSchema = z.union([oldSlotSchema, newSlotSchema]);
+
 const profileSchema = z.object({
   photoUrl: z.string().url().optional().or(z.literal('')),
   bio: z.string().optional(),
-  availabilitySlots: z.array(z.object({
-    start: z.string().datetime(), // ISO 8601
-    end: z.string().datetime(),
-  })).optional(),
+  availabilitySlots: z.array(slotSchema).optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -37,30 +49,71 @@ export async function PATCH(req: NextRequest) {
     // Validate availabilitySlots: no overlapping time ranges
     if (validatedData.availabilitySlots) {
       const slots = validatedData.availabilitySlots;
-      for (let i = 0; i < slots.length; i++) {
-        const current = slots[i];
-        if (new Date(current.start) >= new Date(current.end)) {
-          return NextResponse.json({ error: 'Slot start time must be before end time' }, { status: 400 });
+      
+      // Normalise all slots to the new format for validation
+      const normalised = slots.map((slot: any) => {
+        if ('start' in slot) {
+          // Old format: extract dayOfWeek and times
+          return {
+            dayOfWeek: new Date(slot.start).getDay(),
+            startTime: new Date(slot.start).toISOString().slice(11, 16),
+            endTime: new Date(slot.end).toISOString().slice(11, 16),
+            timezone: 'Asia/Kolkata',
+          };
         }
-        for (let j = i + 1; j < slots.length; j++) {
-          const next = slots[j];
-          if (
-            (new Date(current.start) < new Date(next.end)) &&
-            (new Date(current.end) > new Date(next.start))
-          ) {
-            return NextResponse.json({ error: 'Time slots cannot overlap' }, { status: 400 });
+        return slot;
+      });
+
+      for (let i = 0; i < normalised.length; i++) {
+        const slot = normalised[i];
+        if (slot.startTime >= slot.endTime) {
+          return NextResponse.json({ error: 'Slot end time must be after start time' }, { status: 400 });
+        }
+        for (let j = i + 1; j < normalised.length; j++) {
+          const other = normalised[j];
+          // Only check overlap if on the same day
+          if (slot.dayOfWeek === other.dayOfWeek) {
+            if (slot.startTime < other.endTime && slot.endTime > other.startTime) {
+              return NextResponse.json({ error: 'Time slots cannot overlap' }, { status: 400 });
+            }
           }
         }
       }
     }
 
+    // Fetch mentor profile ID once upfront for availability slot operations
+    const mentorProfile = await prisma.mentorProfile.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true },
+    });
+
+    const updateData: any = {
+      photoUrl: validatedData.photoUrl,
+      bio: validatedData.bio,
+    };
+
+    // If availability slots provided, replace them all at once
+    if (validatedData.availabilitySlots && mentorProfile) {
+      // Delete all existing availability slots for this mentor
+      await prisma.availabilitySlot.deleteMany({
+        where: { mentorProfileId: mentorProfile.id },
+      });
+
+      // Create new availability slots from the provided data (handle both formats)
+      await prisma.availabilitySlot.createMany({
+        data: validatedData.availabilitySlots.map((slot: any) => ({
+          mentorProfileId: mentorProfile.id,
+          dayOfWeek: 'start' in slot ? new Date(slot.start).getDay() : slot.dayOfWeek,
+          startTime: 'start' in slot ? new Date(slot.start).toISOString().slice(11, 16) : slot.startTime,
+          endTime: 'start' in slot ? new Date(slot.end).toISOString().slice(11, 16) : slot.endTime,
+          timezone: slot.timezone || 'Asia/Kolkata',
+        })),
+      });
+    }
+
     const updatedProfile = await prisma.mentorProfile.update({
       where: { userId: session.user.id },
-      data: {
-        photoUrl: validatedData.photoUrl,
-        bio: validatedData.bio,
-        availabilitySlots: validatedData.availabilitySlots as any,
-      },
+      data: updateData,
     });
 
     return NextResponse.json(updatedProfile);

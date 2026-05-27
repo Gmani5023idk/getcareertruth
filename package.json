@@ -2,7 +2,7 @@
   "name": "getcareertruth",
   "version": "0.1.0",
   "private": true,
-"scripts": {
+  "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -25,6 +25,8 @@
     "@serwist/next": "^9.5.11",
     "@tanstack/react-query": "^5.100.7",
     "@types/bcryptjs": "^2.4.6",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.0",
     "axios": "^1.15.2",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.10.0",

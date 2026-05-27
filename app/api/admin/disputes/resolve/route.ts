@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
+import { auditLog, AuditAction, logAdminAction } from '@/lib/audit-log';
+import { adminRateLimit, extractClientIp } from '@/lib/ratelimit';
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,6 +11,22 @@ export async function POST(req: NextRequest) {
     if (!session?.user?.id || (session.user as any).role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Defence-in-depth: admin rate limiting
+    const clientIp = extractClientIp(req);
+    try {
+      const result = await adminRateLimit.limit(`admin:handler:${clientIp}`);
+      if (!result.success) {
+        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+      }
+    } catch (rateLimitError) {
+      console.error('Admin rate limit error (allowing):', rateLimitError);
+    }
+
+    // CSRF check
+    const { validateCsrf } = await import('@/lib/csrf');
+    const csrfError = validateCsrf(req);
+    if (csrfError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const body = await req.json();
     const { bookingId, outcome } = body; // outcome: 'RESOLVED_PAY' | 'RESOLVED_REFUND'

@@ -1,0 +1,147 @@
+/**
+ * Root Middleware
+ *
+ * Provides:
+ * - Admin route protection (JWT token validation + role check)
+ * - CSRF protection for admin mutation endpoints
+ * - Optional IP allowlist for admin routes
+ * - Admin rate limiting (3 req / 15 min per IP)
+ * - HTTPS enforcement in production
+ * - Request logging for rejected attempts
+ */
+
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
+
+const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || '';
+
+// Optional IP allowlist (comma-separated)
+const ADMIN_ALLOWED_IPS = (process.env.ADMIN_ALLOWED_IPS || '').split(',').map((ip) => ip.trim()).filter(Boolean);
+
+/**
+ * Extract client IP from the request headers.
+ * Vercel sets x-forwarded-for; fall back to x-real-ip or loopback.
+ */
+function extractClientIp(request: NextRequest): string {
+  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || request.headers.get('x-real-ip')?.trim()
+    || '127.0.0.1';
+}
+
+export async function middleware(request: NextRequest) {
+  const { pathname, protocol } = request.nextUrl;
+  const method = request.method;
+
+  // Only apply to admin routes
+  const isAdminApi = pathname.startsWith('/api/admin/');
+  const isAdminPage = pathname.startsWith('/admin/');
+  const isAdminRoot = pathname === '/admin';
+
+  if (!isAdminApi && !isAdminPage && !isAdminRoot) {
+    return NextResponse.next();
+  }
+
+  const clientIp = extractClientIp(request);
+
+  // === HTTPS Enforcement (production only) ===
+  if (process.env.NODE_ENV === 'production' && protocol === 'http:') {
+    const httpsUrl = request.nextUrl.clone();
+    httpsUrl.protocol = 'https:';
+    return NextResponse.redirect(httpsUrl);
+  }
+
+  // === CSRF Protection for admin mutation endpoints ===
+  // Use the shared utility from lib/csrf.ts for consistency
+  if (isAdminApi && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const origin = request.headers.get('origin');
+    const referer = request.headers.get('referer');
+
+    const allowedOrigins = [
+      process.env.NEXT_PUBLIC_APP_URL,
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3000',
+    ].filter(Boolean) as string[];
+
+    if (origin) {
+      const isAllowed = allowedOrigins.some((allowed) => {
+        try { return new URL(origin).origin === new URL(allowed).origin; }
+        catch { return false; }
+      });
+      if (!isAllowed) {
+        return NextResponse.json({ error: 'Forbidden: invalid origin' }, { status: 403 });
+      }
+    } else if (referer) {
+      const isAllowed = allowedOrigins.some((allowed) => {
+        try { return new URL(referer).origin === new URL(allowed).origin; }
+        catch { return false; }
+      });
+      if (!isAllowed) {
+        return NextResponse.json({ error: 'Forbidden: invalid referer' }, { status: 403 });
+      }
+    }
+  }
+
+  // === JWT Token Validation ===
+  let token;
+  try {
+    token = await getToken({ req: request, secret: NEXTAUTH_SECRET });
+  } catch (error) {
+    console.error('Middleware token verification error:', error);
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!token) {
+    if (isAdminPage || isAdminRoot) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('callbackUrl', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // === Role Check ===
+  if ((token as any).role !== 'ADMIN') {
+    if (isAdminPage || isAdminRoot) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // === Admin Rate Limiting: 3 requests per 15 minutes per IP ===
+  // Uses edge-compatible ratelimit helper (no Prisma dependency)
+  if (isAdminApi) {
+    try {
+      const { adminRateLimit, checkRateLimitSimple } = await import('@/lib/ratelimit-edge');
+      const { success, retryAfterSeconds } = await checkRateLimitSimple(adminRateLimit, `admin:${clientIp}`);
+
+      if (!success) {
+        const retryAfter = String(retryAfterSeconds);
+        return NextResponse.json(
+          { error: 'Too many requests. Please try again later.' },
+          { status: 429, headers: { 'Retry-After': retryAfter, 'X-RateLimit-Remaining': '0' } }
+        );
+      }
+    } catch (error) {
+      // Fail open: if rate limiter is unavailable, allow the request
+      console.error('Admin rate limit check failed (allowing request):', error);
+    }
+  }
+
+  // === IP Allowlist (optional) ===
+  if (ADMIN_ALLOWED_IPS.length > 0 && !ADMIN_ALLOWED_IPS.includes(clientIp)) {
+    console.warn(`Admin access denied for IP: ${clientIp} on path: ${pathname}`);
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: [
+    '/admin',
+    '/admin/:path*',
+    '/api/admin/:path*',
+  ],
+};

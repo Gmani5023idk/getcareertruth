@@ -24,23 +24,32 @@ export async function GET(
       return NextResponse.json({ error: 'Start date must be before end date' }, { status: 400 });
     }
 
-    // Fetch employee's availability pattern
+    // Fetch employee profile (must exist)
     const employeeProfile = await prisma.employeeProfile.findUnique({
       where: { userId: employeeId },
-      select: { availabilitySlots: true },
+      select: { id: true },
     });
 
     if (!employeeProfile) {
       return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
     }
 
-    const availability = (employeeProfile.availabilitySlots as any[]) || [];
-
-    // Map availability by day name (full name)
-    const slotsByDay = new Map<string, string[]>();
-    availability.forEach((entry: any) => {
-      slotsByDay.set(entry.day, entry.slots || []);
+    // Fix 1: Fetch availability slots from the relational table instead of JSON
+    const availabilitySlots = await prisma.availabilitySlot.findMany({
+      where: { employeeProfileId: employeeProfile.id },
+      select: { dayOfWeek: true, startTime: true, endTime: true },
     });
+
+    // Map availability by day name (0=Sunday, 1=Monday, ..., 6=Saturday)
+    const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const slotsByDay = new Map<string, string[]>();
+    for (const slot of availabilitySlots) {
+      const dayName = DAY_NAMES[slot.dayOfWeek];
+      if (!slotsByDay.has(dayName)) {
+        slotsByDay.set(dayName, []);
+      }
+      slotsByDay.get(dayName)!.push(slot.startTime);
+    }
 
     // Generate dates from startDate to endDate inclusive
     const dates: string[] = [];

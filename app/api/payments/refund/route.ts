@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/db';
 import Razorpay from 'razorpay';
-
-const prisma = new PrismaClient();
+import { auditLog, AuditAction } from '@/lib/audit-log';
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || '',
@@ -87,10 +86,14 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // In production, you would:
-      // 1. Send email notification to user
-      // 2. Send email notification to employee
-      // 3. Log the refund in your accounting system
+      // Audit log
+      await auditLog({
+        action: AuditAction.PAYMENT_REFUNDED,
+        entity: 'Booking',
+        entityId: booking.id,
+        metadata: { refundId: refund.id, refundAmount, paymentId: booking.razorpayPaymentId },
+        success: true,
+      });
 
       return NextResponse.json(
         {

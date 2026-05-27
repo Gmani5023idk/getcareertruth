@@ -53,21 +53,22 @@ export const employeeProfessionalSchema = z.object({
 export const employeeVerificationSchema = z.object({
   linkedInConnected: z.boolean().optional(),
   companyEmail: z.string().email().optional(),
-  idDocumentType: z.enum(['AADHAAR', 'PAN', 'PASSPORT', 'DRIVING_LICENCE']).optional(),
-  idDocumentUrl: z.string().url().optional(),
 });
+
+// Fix 1: AvailabilitySlot schema (replaces raw JSON availabilitySlots)
+export const availabilitySlotSchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  startTime: z.string().regex(/^([0-1]\d|2[0-3]):[0-5]\d$/, 'Must be HH:mm in 24h format'),
+  endTime: z.string().regex(/^([0-1]\d|2[0-3]):[0-5]\d$/, 'Must be HH:mm in 24h format'),
+  timezone: z.string().default('Asia/Kolkata'),
+});
+
+export const availabilitySlotsArraySchema = z.array(availabilitySlotSchema);
 
 export const employeePricingSchema = z.object({
   pricePerCall: z.number().min(0, 'Price must be positive'),
-  availabilitySlots: z.object({
-    mon: z.array(z.string()),
-    tue: z.array(z.string()),
-    wed: z.array(z.string()),
-    thu: z.array(z.string()),
-    fri: z.array(z.string()),
-    sat: z.array(z.string()),
-    sun: z.array(z.string()),
-  }),
+  // Fix 1: Now expects an array of AvailabilitySlot objects instead of day-keyed JSON
+  availabilitySlots: availabilitySlotsArraySchema.default([]),
   payoutMethod: z.enum(['UPI', 'BANK']),
   upiId: z.string().optional(),
   bankAccountNumber: z.string().optional(),

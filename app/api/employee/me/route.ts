@@ -61,15 +61,12 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Exclude sensitive private fields
+    // Exclude sensitive private fields (companyEmail kept for internal verification flow)
     const {
       companyEmail,
-      idDocumentUrl,
-      idDocumentType,
-      isCompanyEmailVerified,
-      isIdVerified,
-      isTeamVerified,
       verificationStatus,
+      verifiedAt,
+      verificationNotes,
       ...publicData
     } = employeeProfile;
 

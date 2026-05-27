@@ -4,6 +4,8 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { auditLog, AuditAction } from '@/lib/audit-log';
+import { loginRateLimit } from '@/lib/ratelimit';
 
 export async function validateUser(email: string, password: string) {
   const user = await prisma.user.findUnique({
@@ -63,16 +65,51 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
 
         try {
+          // Extract IP from request headers
+          const headers = req?.headers as Headers | undefined;
+          const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim()
+            || headers?.get('x-real-ip')?.trim()
+            || 'unknown';
+
+          // Rate limiting: 5 attempts per 15 minutes per IP
+          try {
+            const result = await loginRateLimit.limit(ip);
+            if (!result.success) {
+              console.warn(`Rate limit hit for login from IP: ${ip}`);
+              // Audit log for rate limit hit
+              await auditLog({
+                action: AuditAction.RATE_LIMIT_HIT,
+                entity: 'Login',
+                metadata: { reason: 'Rate limited', ip },
+                success: false,
+              }).catch(() => {});
+              return null;
+            }
+          } catch (rateLimitError) {
+            // Fail open if Upstash is unavailable
+            console.error('Rate limit check failed (allowing login):', rateLimitError);
+          }
+
           const user = await validateUser(
             credentials.email as string,
             credentials.password as string
           );
+
+          // Audit log for successful login
+          await auditLog({
+            userId: user.id,
+            action: AuditAction.USER_LOGIN,
+            entity: 'User',
+            entityId: user.id,
+            ipAddress: ip,
+            success: true,
+          });
 
           return {
             id: user.id,
@@ -85,6 +122,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             image: user.profilePhoto,
           };
         } catch (error) {
+          // Audit log for failed login
+          const headers = req?.headers as Headers | undefined;
+          const ip = headers?.get('x-forwarded-for')?.split(',')[0]?.trim()
+            || headers?.get('x-real-ip')?.trim()
+            || 'unknown';
+          await auditLog({
+            action: AuditAction.USER_LOGIN_FAILED,
+            entity: 'User',
+            metadata: { email: credentials.email, reason: (error as Error).message },
+            ipAddress: ip,
+            success: false,
+          }).catch(() => {});
           console.error('Auth error:', error);
           return null;
         }
@@ -94,8 +143,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
    callbacks: {
      async signIn({ user, account }) {
        console.log('signIn callback triggered for provider:', account?.provider, 'user email:', user.email);
-       // Always return true to allow sign-in to proceed
-       // Handle redirection via redirect callback or callbackUrl in signIn()
+       
+       // Audit log for sign in
+       await auditLog({
+         userId: user.id,
+         action: AuditAction.USER_LOGIN,
+         entity: 'User',
+         entityId: user.id,
+         metadata: { provider: account?.provider },
+         success: true,
+       }).catch(() => {});
+       
        return true;
      },
      async redirect({ url, baseUrl }) {
