@@ -116,6 +116,17 @@ export function checkRateLimit(
   };
 }
 
+export class RateLimitError extends Error {
+  public readonly statusCode = 429;
+  public readonly rateLimit: { remaining: number; resetTime: number };
+
+  constructor(remaining: number, resetTime: number) {
+    super('Too many requests');
+    this.name = 'RateLimitError';
+    this.rateLimit = { remaining, resetTime };
+  }
+}
+
 /**
  * Rate limit middleware for Next.js API routes
  */
@@ -125,13 +136,7 @@ export function rateLimit(config: RateLimitConfig) {
     const result = checkRateLimit(identifier, config);
 
     if (!result.allowed) {
-      const error = new Error('Too many requests');
-      (error as any).statusCode = 429;
-      (error as any).rateLimit = {
-        remaining: result.remaining,
-        resetTime: result.resetTime,
-      };
-      throw error;
+      throw new RateLimitError(result.remaining, result.resetTime);
     }
 
     return result;

@@ -15,7 +15,7 @@ import { createElement } from 'react';
  * @param loadingComponent - Optional loading component
  * @returns Lazy loaded component
  */
-export function lazyLoad<T extends React.ComponentType<any>>(
+export function lazyLoad<T extends React.ComponentType<unknown>>(
   componentPath: () => Promise<{ default: T }>,
   loadingComponent?: React.ComponentType
 ) {
@@ -31,7 +31,7 @@ export function lazyLoad<T extends React.ComponentType<any>>(
  * @param skeletonComponent - Skeleton component to show while loading
  * @returns Lazy loaded component
  */
-export function lazyLoadWithSkeleton<T extends React.ComponentType<any>>(
+export function lazyLoadWithSkeleton<T extends React.ComponentType<unknown>>(
   componentPath: () => Promise<{ default: T }>,
   skeletonComponent: React.ComponentType
 ) {
@@ -65,7 +65,7 @@ export function OptimizedImage({
   height?: number;
   priority?: boolean;
   className?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }) {
   return createElement(Image, {
     src,
@@ -85,7 +85,7 @@ export function OptimizedImage({
  * @param wait - Wait time in milliseconds
  * @returns Debounced function
  */
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
@@ -110,7 +110,7 @@ export function debounce<T extends (...args: any[]) => any>(
  * @param limit - Time limit in milliseconds
  * @returns Throttled function
  */
-export function throttle<T extends (...args: any[]) => any>(
+export function throttle<T extends (...args: unknown[]) => unknown>(
   func: T,
   limit: number
 ): (...args: Parameters<T>) => void {
@@ -140,6 +140,12 @@ export function formatFileSize(bytes: number): string {
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
+interface NavigatorWithConnection extends Navigator {
+  connection?: { effectiveType: string };
+  mozConnection?: { effectiveType: string };
+  webkitConnection?: { effectiveType: string };
+}
+
 /**
  * Check if the user is on a slow connection
  * @returns Whether the connection is slow
@@ -147,7 +153,8 @@ export function formatFileSize(bytes: number): string {
 export function isSlowConnection(): boolean {
   if (typeof navigator === 'undefined') return false;
 
-  const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+  const nav = navigator as NavigatorWithConnection;
+  const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
   if (!connection) return false;
 
   return connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g';
@@ -240,7 +247,7 @@ export async function measurePerformance<T>(
  * Report web vitals to analytics
  * @param metric - Web vital metric
  */
-export function reportWebVitals(metric: any): void {
+export function reportWebVitals(metric: unknown): void {
   if (typeof window === 'undefined') return;
 
   // Send to analytics service
@@ -263,12 +270,12 @@ export function reportWebVitals(metric: any): void {
  * @param routes - Array of routes to code split
  * @returns Code split routes
  */
-export function codeSplitRoutes(routes: any[]): any[] {
+export function codeSplitRoutes(routes: Record<string, unknown>[]): Record<string, unknown>[] {
   return routes.map((route) => {
     if (route.component) {
       return {
         ...route,
-        component: lazyLoad(route.component),
+        component: lazyLoad(route.component as unknown as () => Promise<{ default: React.ComponentType<unknown> }>),
       };
     }
     return route;

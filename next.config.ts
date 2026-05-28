@@ -14,9 +14,6 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  turbopack: {
-    root: process.cwd(),
-  },
   images: {
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
