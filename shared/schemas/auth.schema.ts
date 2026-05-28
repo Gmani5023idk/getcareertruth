@@ -90,6 +90,9 @@ export const bookingSchema = z.object({
   employeeId: z.string(),
   scheduledAt: z.string().datetime(),
   topic: z.string().min(20, 'Topic must be at least 20 characters').max(300),
+  durationMins: z.coerce.number().int().min(1).max(480).optional().default(15),
+  notes: z.string().max(500).optional(),
+  amountPaid: z.coerce.number().int().min(0).optional().default(0),
 });
 
 // Review schemas
@@ -98,6 +101,22 @@ export const reviewSchema = z.object({
   rating: z.number().min(1).max(5),
   text: z.string().max(300).optional(),
 });
+
+// ---------------------------------------------------------------------------
+// Session User Schema — runtime validation for next-auth session user
+// Mirrors the UserRole type and AuthenticatedSession interface
+// ---------------------------------------------------------------------------
+
+export const sessionUserSchema = z.object({
+  id: z.string().min(1, "User ID is required"),
+  role: z.enum(["STUDENT", "EMPLOYEE", "PARENT", "ADMIN"]),
+  email: z.string().email().nullable().optional(),
+  name: z.string().nullable().optional(),
+  image: z.string().nullable().optional(),
+  isNewGoogleUser: z.boolean().optional(),
+});
+
+export type SessionUser = z.infer<typeof sessionUserSchema>;
 
 // Verification schemas
 export const otpSchema = z.object({
