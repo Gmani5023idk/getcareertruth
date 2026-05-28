@@ -17,10 +17,14 @@ const ALLOWED_ORIGINS = [
 ];
 
 // Optional IP allowlist for admin routes (comma-separated)
-const ADMIN_ALLOWED_IPS = (process.env.ADMIN_ALLOWED_IPS || '')
-  .split(',')
-  .map((ip) => ip.trim())
-  .filter(Boolean);
+// NOTE: This is read at request time via getAdminAllowedIps() so tests
+// can control it via vi.stubEnv before calling proxy().
+function getAdminAllowedIps(): string[] {
+  return (process.env.ADMIN_ALLOWED_IPS || '')
+    .split(',')
+    .map((ip) => ip.trim())
+    .filter(Boolean);
+}
 
 const MUTATION_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
@@ -55,6 +59,23 @@ export async function proxy(request: NextRequest) {
     const httpsUrl = request.nextUrl.clone();
     httpsUrl.protocol = 'https:';
     return NextResponse.redirect(httpsUrl);
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // 0a. File Upload Size Check (edge-level rejection for large payloads)
+  // ────────────────────────────────────────────────────────────────────────────
+  if (pathname === '/api/auth/upload-id') {
+    const contentLength = request.headers.get('content-length');
+    if (contentLength) {
+      const bytes = parseInt(contentLength, 10);
+      // Reject at edge if Content-Length exceeds 10MB
+      if (!isNaN(bytes) && bytes > 10 * 1024 * 1024) {
+        return NextResponse.json(
+          { error: 'File size exceeds maximum of 10MB' },
+          { status: 413 }
+        );
+      }
+    }
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -111,10 +132,11 @@ export async function proxy(request: NextRequest) {
     }
 
     // IP allowlist (optional, admin only)
+    const adminAllowedIps = getAdminAllowedIps();
     const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || request.headers.get('x-real-ip')?.trim()
       || '127.0.0.1';
-    if (ADMIN_ALLOWED_IPS.length > 0 && !ADMIN_ALLOWED_IPS.includes(clientIp)) {
+    if (adminAllowedIps.length > 0 && !adminAllowedIps.includes(clientIp)) {
       console.warn(`Admin access denied for IP: ${clientIp} on path: ${pathname}`);
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
