@@ -355,6 +355,70 @@ describe('Edge Middleware: HTTPS Redirect', () => {
   });
 });
 
+describe('Edge Middleware: File Upload Size Validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockToken = null;
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('NEXTAUTH_SECRET', 'test-secret');
+  });
+
+  it('should reject uploads over 10MB with 413', async () => {
+    const req = mockRequest('http://localhost:3000/api/auth/upload-id', {
+      method: 'POST',
+      headers: {
+        'Content-Length': '10485761', // 10MB + 1 byte
+        'Content-Type': 'application/octet-stream',
+      },
+    });
+    const res = await proxy(req);
+    expect(res.status).toBe(413);
+    const body = await res.json();
+    expect(body.error).toContain('10MB');
+  });
+
+  it('should allow uploads under 10MB to pass through', async () => {
+    const req = mockRequest('http://localhost:3000/api/auth/upload-id', {
+      method: 'POST',
+      headers: {
+        'Content-Length': '5242880', // 5MB
+        'Content-Type': 'application/octet-stream',
+      },
+    });
+    const res = await proxy(req);
+    // Should pass through edge (handler may reject based on file type/content, but edge okay)
+    expect(res.status).not.toBe(413);
+    expect(res.status).not.toBe(500);
+  });
+
+  it('should allow uploads without Content-Length header to pass through', async () => {
+    const req = mockRequest('http://localhost:3000/api/auth/upload-id', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/octet-stream',
+      },
+    });
+    const res = await proxy(req);
+    // No Content-Length → edge skips size check, handler validates
+    expect(res.status).not.toBe(413);
+    expect(res.status).not.toBe(500);
+  });
+
+  it('should NOT apply size check to non-upload routes', async () => {
+    const req = mockRequest('http://localhost:3000/api/employees', {
+      method: 'POST',
+      headers: {
+        'Content-Length': '20971520', // 20MB (over limit but different route)
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ test: true }),
+    });
+    const res = await proxy(req);
+    // Different route → no file size check; may be blocked by rate limit/CSRF but not 413
+    expect(res.status).not.toBe(413);
+  });
+});
+
 describe('Edge Middleware: Security Headers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
