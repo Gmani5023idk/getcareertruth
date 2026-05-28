@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { sendEmail } from '@/lib/email';
 import { encrypt } from '@/lib/encryption';
 import { auditLog, AuditAction } from '@/lib/audit-log';
+import { hasRole } from '@/lib/auth-utils';
 
 const applySchema = z.object({
   collegeName: z.string().min(2, "College name is too short"),
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if ((session.user as any).role !== 'STUDENT') {
+    if (!hasRole(session, ['STUDENT'])) {
       return NextResponse.json({ error: 'Only students can apply as mentors' }, { status: 403 });
     }
 
@@ -86,9 +87,9 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ id: application.id, status: application.status }, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: (error as any).errors[0].message }, { status: 400 });
+      return NextResponse.json({ error: error.issues[0].message }, { status: 400 });
     }
     console.error('Mentor apply error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

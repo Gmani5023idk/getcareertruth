@@ -93,25 +93,32 @@ export async function POST(req: NextRequest) {
       success: true,
     });
 
-    // Post-payment actions: Zoom meeting, conversation, emails
-    try {
-      await processConfirmedBooking(booking.id);
-    } catch (postError) {
+    // Post-payment actions: Zoom meeting (tracks meetingStatus), conversation, emails
+    void processConfirmedBooking(booking.id).catch((postError) => {
+      // processConfirmedBooking handles its own errors internally (meetingStatus: FAILED, etc.).
+      // This catch is a safety net for unexpected errors (e.g., DB connection failure).
       console.error('Webhook post-actions failed:', postError);
-    }
+      auditLog({
+        action: AuditAction.WEBHOOK_FAILED,
+        entity: 'Booking',
+        entityId: booking.id,
+        metadata: { error: 'Post-payment actions failed', detail: (postError as Error).message },
+        success: false,
+      }).catch(() => {});
+    });
 
     // Mark event as processed for idempotency
     await markWebhookEventProcessed(eventId, 'razorpay');
 
     return NextResponse.json({ status: 'processed' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Webhook error:', error);
     await auditLog({
       action: AuditAction.WEBHOOK_FAILED,
       entity: 'RazorpayWebhook',
-      metadata: { error: error.message },
+      metadata: { error: (error as Error).message },
       success: false,
     }).catch(() => {});
-    return NextResponse.json({ error: error.message || 'Webhook processing failed' }, { status: 500 });
+    return NextResponse.json({ error: (error as Error).message || 'Webhook processing failed' }, { status: 500 });
   }
 }

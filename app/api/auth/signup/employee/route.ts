@@ -108,10 +108,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Employee signup error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to create employee account' },
+      { error: (error as Error).message || 'Failed to create employee account' },
       { status: 500 }
     );
   }

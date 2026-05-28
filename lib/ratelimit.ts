@@ -68,6 +68,16 @@ export const registrationRateLimit = createLimiter(3, 3600);
 export const adminRateLimit = createLimiter(3, 900);
 
 /**
+ * Refund rate limiter: 3 refunds per hour per userId
+ */
+export const refundRateLimit = createLimiter(3, 3600);
+
+/**
+ * Transcript rate limiter: 30 requests per minute per userId
+ */
+export const transcriptRateLimit = createLimiter(30, 60);
+
+/**
  * Extract client IP from request headers
  */
 export function extractClientIp(request: Request): string {
@@ -105,9 +115,9 @@ export async function checkRateLimit(
     // Log rate limit hits using audit logging (dynamic import to avoid edge-runtime issues)
     if (!result.success) {
       try {
-        const { auditLog } = await import('@/lib/audit-log');
+        const { auditLog, AuditAction } = await import('@/lib/audit-log');
         await auditLog({
-          action: 'RATE_LIMIT_HIT' as any,
+          action: AuditAction.RATE_LIMIT_HIT,
           entity: 'RateLimit',
           entityId: identifier,
           metadata: { action, identifier },

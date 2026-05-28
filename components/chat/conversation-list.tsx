@@ -10,7 +10,7 @@ export interface Conversation {
     id: string;
     name: string;
     avatar: string;
-    status?: string;
+    status?: 'online' | 'offline' | 'away';
   };
   lastMessage: {
     content: string;

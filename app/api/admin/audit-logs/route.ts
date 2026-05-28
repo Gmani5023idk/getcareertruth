@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
+import type { Prisma } from '@prisma/client';
 import { auditLog, AuditAction } from '@/lib/audit-log';
 import { adminRateLimit, extractClientIp } from '@/lib/ratelimit';
+import { authorizeRoute } from '@/lib/auth-utils';
 
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.id || (session.user as any).role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const authErr = authorizeRoute(session, ['ADMIN']);
+    if (authErr) return authErr;
 
     // Defence-in-depth: admin rate limiting
     const clientIp = extractClientIp(req);
@@ -61,12 +64,12 @@ export async function GET(req: NextRequest) {
 
     const [logs, total] = await Promise.all([
       prisma.auditLog.findMany({
-        where: where as any,
+        where: where as Prisma.AuditLogWhereInput,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      prisma.auditLog.count({ where: where as any }),
+      prisma.auditLog.count({ where: where as Prisma.AuditLogWhereInput }),
     ]);
 
     return NextResponse.json({
@@ -75,7 +78,7 @@ export async function GET(req: NextRequest) {
       page,
       totalPages: Math.ceil(total / limit),
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Fetch audit logs error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

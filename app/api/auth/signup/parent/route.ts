@@ -84,10 +84,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Parent signup error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to create parent account' },
+      { error: (error as Error).message || 'Failed to create parent account' },
       { status: 500 }
     );
   }

@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
 import { auditLog, AuditAction, logAdminAction } from '@/lib/audit-log';
 import { adminRateLimit, extractClientIp } from '@/lib/ratelimit';
+import { authorizeRoute } from '@/lib/auth-utils';
 
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.id || (session.user as any).role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const authErr = authorizeRoute(session, ['ADMIN']);
+    if (authErr) return authErr;
 
     // Defence-in-depth: admin rate limiting
     const clientIp = extractClientIp(req);
@@ -100,7 +102,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: 'Invalid outcome' }, { status: 400 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Dispute resolution error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

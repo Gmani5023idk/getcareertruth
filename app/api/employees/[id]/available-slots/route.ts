@@ -125,10 +125,10 @@ export async function GET(
     freeSlots.sort((a, b) => new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime());
 
     return NextResponse.json({ slots: freeSlots });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Get available slots error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch available slots' },
+      { error: (error as Error).message || 'Failed to fetch available slots' },
       { status: 500 }
     );
   }

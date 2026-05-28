@@ -56,10 +56,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Mark message as read error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to mark message as read' },
+      { error: (error as Error).message || 'Failed to mark message as read' },
       { status: 500 }
     );
   }

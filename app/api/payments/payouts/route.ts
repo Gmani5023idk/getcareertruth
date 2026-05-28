@@ -1,17 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import { apiHandler, success, type HandlerSession } from '@/lib/api-handler';
+import { requestPayoutSchema, getPayoutsSchema } from '@/shared/schemas/payout.schema';
 
-const prisma = new PrismaClient();
-
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
+/** POST /api/payments/payouts — Request a payout for an employee */
+export const POST = apiHandler({
+  requireAuth: true,
+  allowedRoles: ['EMPLOYEE'],
+  schema: requestPayoutSchema,
+  handler: async ({ body, session }) => {
+    const sess = session as import('@/lib/api-handler').HandlerSession;
     const { employeeId } = body;
 
-    if (!employeeId) {
+    // Verify the employee is requesting their own payout
+    if (sess.user.id !== employeeId) {
       return NextResponse.json(
-        { error: 'Employee ID is required' },
-        { status: 400 }
+        { success: false, error: 'You can only request payouts for your own account', code: 'FORBIDDEN' },
+        { status: 403 }
       );
     }
 
@@ -22,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     if (!employee) {
       return NextResponse.json(
-        { error: 'Employee not found' },
+        { success: false, error: 'Employee not found', code: 'NOT_FOUND' },
         { status: 404 }
       );
     }
@@ -37,10 +42,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (pendingBookings.length === 0) {
-      return NextResponse.json(
-        { message: 'No pending payouts found' },
-        { status: 200 }
-      );
+      return success({ message: 'No pending payouts found' });
     }
 
     // Calculate total payout amount (80% of booking amount, 20% platform fee)
@@ -60,38 +62,29 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // In production, you would:
-    // 1. Create a payout request with Razorpay/Stripe
-    // 2. Send email notification to employee
-    // 3. Create a payout record in your database
+    return success({
+      message: 'Payout request created successfully',
+      payoutAmount,
+      bookingCount: pendingBookings.length,
+      bookingIds: pendingBookings.map((b) => b.id),
+    });
+  },
+});
 
-    return NextResponse.json(
-      {
-        message: 'Payout request created successfully',
-        payoutAmount,
-        bookingCount: pendingBookings.length,
-        bookingIds: pendingBookings.map((b) => b.id),
-      },
-      { status: 200 }
-    );
-  } catch (error: any) {
-    console.error('Request payout error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to request payout' },
-      { status: 500 }
-    );
-  }
-}
+/** GET /api/payments/payouts — Get payout history for an employee */
+export const GET = apiHandler({
+  requireAuth: true,
+  allowedRoles: ['EMPLOYEE'],
+  schema: getPayoutsSchema,
+  handler: async ({ body, session }) => {
+    const sess = session as import('@/lib/api-handler').HandlerSession;
+    const { employeeId } = body;
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const employeeId = searchParams.get('employeeId');
-
-    if (!employeeId) {
+    // Verify the employee is viewing their own payouts
+    if (sess.user.id !== employeeId) {
       return NextResponse.json(
-        { error: 'Employee ID is required' },
-        { status: 400 }
+        { success: false, error: 'You can only view your own payouts', code: 'FORBIDDEN' },
+        { status: 403 }
       );
     }
 
@@ -102,7 +95,7 @@ export async function GET(req: NextRequest) {
 
     if (!employee) {
       return NextResponse.json(
-        { error: 'Employee not found' },
+        { success: false, error: 'Employee not found', code: 'NOT_FOUND' },
         { status: 404 }
       );
     }
@@ -130,29 +123,20 @@ export async function GET(req: NextRequest) {
       .filter((b) => b.payoutStatus === 'PAID')
       .reduce((sum, b) => sum + b.amountPaid, 0);
 
-    return NextResponse.json(
-      {
-        totalEarnings,
-        pendingPayouts,
-        processingPayouts,
-        paidPayouts,
-        availableForPayout: pendingPayouts,
-        payoutMethod: employee.payoutMethod,
-        payoutDetails: employee.payoutDetails,
-        bookings: bookings.map((b) => ({
-          id: b.id,
-          amount: b.amountPaid,
-          payoutStatus: b.payoutStatus,
-          createdAt: b.createdAt,
-        })),
-      },
-      { status: 200 }
-    );
-  } catch (error: any) {
-    console.error('Get payouts error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to get payouts' },
-      { status: 500 }
-    );
-  }
-}
+    return success({
+      totalEarnings,
+      pendingPayouts,
+      processingPayouts,
+      paidPayouts,
+      availableForPayout: pendingPayouts,
+      payoutMethod: employee.payoutMethod,
+      payoutDetails: employee.payoutDetails,
+      bookings: bookings.map((b) => ({
+        id: b.id,
+        amount: b.amountPaid,
+        payoutStatus: b.payoutStatus,
+        createdAt: b.createdAt,
+      })),
+    });
+  },
+});

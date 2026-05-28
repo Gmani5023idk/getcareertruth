@@ -80,10 +80,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Verify payment error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to verify payment' },
+      { error: (error as Error).message || 'Failed to verify payment' },
       { status: 500 }
     );
   }

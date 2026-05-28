@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/db';
+import { auth } from '@/lib/auth';
+import { hasRole } from '@/lib/auth-utils';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-
-const prisma = new PrismaClient();
+import {
+  checkRateLimit,
+  transcriptRateLimit,
+  extractClientIp,
+} from '@/lib/ratelimit';
 
 /**
  * Handle transcript operations
@@ -10,7 +15,22 @@ const prisma = new PrismaClient();
  */
 export async function POST(req: NextRequest) {
   try {
-    const contentType = req.headers.get('content-type') || '';
+    // ── Auth check ──
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // ── Rate limiting ──
+    const ip = extractClientIp(req);
+    const rateLimitResult = await checkRateLimit(transcriptRateLimit, `${session.user.id}:${ip}`, 'transcript-create');
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: rateLimitResult.headers }
+      );
+    }
+
     const body = await req.json();
     const { action, bookingId, content, summary, keyPoints } = body;
 
@@ -227,6 +247,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── Authorization: verify user is associated with this booking ──
+    const isAdmin = hasRole(session, ['ADMIN']);
+    const isOwner =
+      booking.studentId === session.user.id ||
+      booking.parentId === session.user.id;
+    const isEmployee = booking.employeeId === session.user.id;
+    if (!isAdmin && !isOwner && !isEmployee) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     // Create transcript
     const transcript = await prisma.transcript.create({
       data: {
@@ -245,62 +275,153 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Transcript error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to process request' },
+      { error: (error as Error).message || 'Failed to process request' },
       { status: 500 }
     );
   }
 }
 
 /**
- * Get transcript for a booking
+ * Get transcript(s)
+ * GET /api/transcripts?bookingId=xxx - Get single transcript by bookingId
+ * GET /api/transcripts?page=1&limit=10 - List transcripts with pagination
  */
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const bookingId = searchParams.get('bookingId');
+    // ── Auth check ──
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    if (!bookingId) {
+    // ── Rate limiting ──
+    const ip = extractClientIp(req);
+    const rateLimitResult = await checkRateLimit(transcriptRateLimit, `${session.user.id}:${ip}`, 'transcript-get');
+    if (!rateLimitResult.success) {
       return NextResponse.json(
-        { error: 'Booking ID is required' },
-        { status: 400 }
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: rateLimitResult.headers }
       );
     }
 
-    const transcript = await prisma.transcript.findUnique({
-      where: { bookingId },
-      include: {
-        booking: {
-          include: {
-            student: true,
-            parent: true,
-            employee: {
-              include: {
-                employeeProfile: true,
+    const { searchParams } = new URL(req.url);
+    const bookingId = searchParams.get('bookingId');
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '10', 10), 100);
+
+    const isAdmin = hasRole(session, ['ADMIN']);
+    const userId = session.user.id;
+
+    // Build user-scoped where clause
+    const userWhere = isAdmin
+      ? {}
+      : {
+          booking: {
+            OR: [
+              { employeeId: userId },
+              { studentId: userId },
+              { parentId: userId },
+            ],
+          },
+        };
+
+    // Single transcript by bookingId
+    if (bookingId) {
+      const transcript = await prisma.transcript.findFirst({
+        where: {
+          bookingId,
+          ...userWhere,
+        },
+        include: {
+          booking: {
+            include: {
+              student: { select: { id: true, email: true } },
+              parent: { select: { id: true, email: true } },
+              employee: {
+                include: {
+                  employeeProfile: {
+                    select: { fullName: true, company: true },
+                  },
+                },
               },
             },
           },
         },
-      },
-    });
+      });
 
-    if (!transcript) {
+      if (!transcript) {
+        return NextResponse.json(
+          { error: 'Transcript not found' },
+          { status: 404 }
+        );
+      }
+
       return NextResponse.json(
-        { error: 'Transcript not found' },
-        { status: 404 }
+        { transcript },
+        {
+          status: 200,
+          headers: {
+            'Cache-Control': 'private, max-age=60, stale-while-revalidate=300',
+          },
+        }
       );
     }
 
+    // List transcripts with pagination (user-scoped)
+    const skip = (page - 1) * limit;
+    const [transcripts, total] = await Promise.all([
+      prisma.transcript.findMany({
+        where: userWhere,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          booking: {
+            include: {
+              student: { select: { id: true, email: true } },
+              parent: { select: { id: true, email: true } },
+              employee: {
+                include: {
+                  employeeProfile: {
+                    select: { fullName: true, company: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.transcript.count({ where: userWhere }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
     return NextResponse.json(
-      { transcript },
-      { status: 200 }
+      {
+        transcripts,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+        },
+      },
+      {
+        status: 200,
+        headers: {
+          'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+        },
+      }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Get transcript error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to get transcript' },
+      { error: (error as Error).message || 'Failed to get transcript' },
       { status: 500 }
     );
   }

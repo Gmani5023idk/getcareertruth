@@ -6,6 +6,7 @@ import { prisma } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { auditLog, AuditAction } from '@/lib/audit-log';
 import { loginRateLimit } from '@/lib/ratelimit';
+import { sessionUserSchema } from '@/shared/schemas/auth.schema';
 
 export async function validateUser(email: string, password: string) {
   const user = await prisma.user.findUnique({
@@ -170,9 +171,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Initial sign in
         if (user) {
           token.id = user.id;
-          token.role = (user as any).role;
+          token.role = user.role ?? 'STUDENT';
           // Mark if this is a new Google user (no role yet)
-          if (account?.provider === 'google' && !(user as any).role) {
+          if (account?.provider === 'google' && !user.role) {
             token.isNewGoogleUser = true;
           }
         }
@@ -195,8 +196,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
      },
      async session({ session, token }) {
        if (token && session.user) {
-         session.user.id = token.id as string;
-         (session.user as any).role = token.role as string;
+         // Runtime validation: ensure session user has valid shape
+         const parsed = sessionUserSchema.parse({
+           id: token.id ?? '',
+           role: token.role ?? 'STUDENT',
+           email: token.email,
+           name: token.name,
+           image: token.picture,
+         });
+         session.user.id = parsed.id;
+         session.user.role = parsed.role;
        }
        return session;
      },

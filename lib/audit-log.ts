@@ -6,6 +6,7 @@
  */
 
 import { prisma } from '@/lib/db';
+import type { Prisma } from '@prisma/client';
 
 /**
  * Enum of all audit actions
@@ -141,7 +142,7 @@ export async function auditLog(params: AuditLogParams): Promise<void> {
         action: params.action,
         entity: params.entity,
         entityId: params.entityId ?? null,
-        metadata: sanitizeMetadata(params.metadata ?? null) as any,
+        metadata: sanitizeMetadata(params.metadata ?? null) as Prisma.InputJsonValue,
         ipAddress: params.ipAddress ?? null,
         userAgent: params.userAgent ?? null,
         success: params.success ?? true,

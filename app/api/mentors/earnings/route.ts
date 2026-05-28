@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
         disputeStatus: b.disputeStatus,
       })),
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Fetch earnings error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

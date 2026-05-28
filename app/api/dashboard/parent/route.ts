@@ -343,10 +343,10 @@ export async function GET() {
         })),
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Parent dashboard error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to load dashboard' },
+      { error: (error as Error).message || 'Failed to load dashboard' },
       { status: 500 }
     );
   }

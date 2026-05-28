@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRazorpayOrder, rupeesToPaise } from '@/lib/razorpay';
+import { createRazorpayOrder, rupeesToPaise, PaymentError } from '@/lib/razorpay';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { checkRateLimit, paymentRateLimit, extractClientIp } from '@/lib/ratelimit';
@@ -151,10 +151,22 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
+    // Log full error server-side only — never send implementation details to client
     console.error('Create order error:', error);
+
+    // PaymentError carries a safe user message
+    if (error && typeof error === 'object' && error.constructor.name === 'PaymentError') {
+      const pe = error as { userMessage?: string };
+      return NextResponse.json(
+        { error: pe.userMessage ?? 'Payment could not be processed. Please try again.' },
+        { status: 500 }
+      );
+    }
+
+    // Unknown error — generic message only
     return NextResponse.json(
-      { error: error.message || 'Failed to create order' },
+      { error: 'Payment could not be processed. Please try again.' },
       { status: 500 }
     );
   }

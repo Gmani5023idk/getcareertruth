@@ -80,7 +80,7 @@ export async function GET(
       rating: profile?.rating || 0,
       reviewsCount: profile?.reviewsCount || 0,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Fetch mentor profile error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

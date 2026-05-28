@@ -61,7 +61,7 @@ export async function PUT(
     // TODO: Handle refunds if status was CONFIRMED (paid)
 
     return NextResponse.json({ booking: updated });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Cancel booking error:', error);
     return NextResponse.json(
       { error: 'Failed to cancel booking' },

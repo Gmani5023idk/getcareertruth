@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
 import { decrypt, maskSensitive } from '@/lib/encryption';
 import { logAdminAction } from '@/lib/audit-log';
 import { adminRateLimit, extractClientIp } from '@/lib/ratelimit';
+import { authorizeRoute } from '@/lib/auth-utils';
+import { validateCsrf } from '@/lib/csrf';
 
 export async function PATCH(
   req: NextRequest,
@@ -12,9 +16,8 @@ export async function PATCH(
 ) {
   try {
     const session = await auth();
-    if (!session?.user?.id || (session.user as any).role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const authErr = authorizeRoute(session, ['ADMIN']);
+    if (authErr) return authErr;
 
     // Defence-in-depth: admin rate limiting
     const clientIp = extractClientIp(req);
@@ -32,7 +35,6 @@ export async function PATCH(
     const { action, rejectionReason } = body;
 
     // CSRF check for mutation
-    const { validateCsrf } = await import('@/lib/csrf');
     const csrfError = validateCsrf(req);
     if (csrfError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -68,7 +70,7 @@ export async function PATCH(
 
       // Audit log
       await logAdminAction(
-        session.user.id as string,
+        session!.user.id as string,
         'APPROVE_APPLICATION',
         'MentorApplication',
         id,
@@ -103,7 +105,7 @@ export async function PATCH(
 
       // Audit log
       await logAdminAction(
-        session.user.id as string,
+        session!.user.id as string,
         'REJECT_APPLICATION',
         'MentorApplication',
         id,
@@ -131,7 +133,7 @@ export async function PATCH(
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Mentor application update error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

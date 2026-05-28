@@ -63,8 +63,8 @@ export default function SlotEditor({ initialSlots, onSave }: SlotEditorProps) {
     try {
       await onSave(slots);
       toast.success('Availability slots updated successfully!');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update availability');
+    } catch (error) {
+      toast.error((error as Error).message || 'Failed to update availability');
     } finally {
       setLoading(false);
     }

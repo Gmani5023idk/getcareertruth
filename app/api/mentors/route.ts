@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { apiHandler, success } from '@/lib/api-handler';
+import { listMentorsSchema } from '@/shared/schemas/mentor.schema';
 
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const domain = searchParams.get('domain');
-    const sort = searchParams.get('sort'); // 'rating'
+/** GET /api/mentors — List approved mentors with optional filters */
+export const GET = apiHandler({
+  schema: listMentorsSchema,
+  handler: async ({ body }) => {
+    const { domain, sort } = body;
 
     const mentors = await prisma.user.findMany({
       where: {
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Map to public format
-    let formattedMentors = mentors.map(m => {
+    let formattedMentors = mentors.map((m) => {
       const app = m.mentorApplications[0];
       const prof = m.mentorProfile;
       return {
@@ -57,9 +58,6 @@ export async function GET(req: NextRequest) {
       formattedMentors.sort((a, b) => b.rating - a.rating);
     }
 
-    return NextResponse.json(formattedMentors);
-  } catch (error: any) {
-    console.error('Fetch mentors error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
+    return success(formattedMentors);
+  },
+});

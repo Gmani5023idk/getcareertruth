@@ -57,10 +57,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Send typing indicator error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to send typing indicator' },
+      { error: (error as Error).message || 'Failed to send typing indicator' },
       { status: 500 }
     );
   }

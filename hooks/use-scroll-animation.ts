@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useMemo } from 'react';
-import { useInView, type Variants } from 'framer-motion';
+import { useInView, type Variants, type UseInViewOptions } from 'framer-motion';
 
 type AnimationType = 'fadeIn' | 'fadeInUp' | 'fadeInDown' | 'fadeInLeft' | 'fadeInRight' | 'scaleIn' | 'slideUp' | 'slideDown';
 
@@ -56,7 +56,7 @@ export function useScrollAnimation({
   duration = 0.5,
 }: UseScrollAnimationOptions = {}) {
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once, margin: margin as any });
+  const isInView = useInView(ref, { once, margin: margin as UseInViewOptions['margin'] });
 
   const variants = useMemo(() => animationVariants[animation], [animation]);
 

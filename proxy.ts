@@ -173,7 +173,12 @@ export async function proxy(request: NextRequest) {
   // ────────────────────────────────────────────────────────────────────────────
   // 6. Rate Limiting for API routes + Security Headers
   // ────────────────────────────────────────────────────────────────────────────
-  if (isApiRoute) {
+  // Bypass rate limiting for cron routes with valid admin secret (Vercel Cron jobs)
+  const isCronRoute = pathname.startsWith('/api/cron/');
+  const cronAuthHeader = request.headers.get('x-admin-secret');
+  const isAuthenticatedCron = isCronRoute && cronAuthHeader === process.env.ADMIN_SECRET;
+
+  if (isApiRoute && !isAuthenticatedCron) {
     try {
       const origin = request.headers.get('origin') || '';
       const config = getRateLimitConfigForPath(pathname);

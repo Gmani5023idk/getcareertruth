@@ -44,14 +44,14 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     let message = 'An unexpected error occurred';
     let status = 500;
 
-    if (error.name === 'ZodError') {
+    if ((error as Error).name === 'ZodError') {
       message = 'Invalid input data';
       status = 400;
-    } else if (error.message === 'USER_NOT_FOUND') {
+    } else if ((error as Error).message === 'USER_NOT_FOUND') {
       message = 'No account found with this email';
       status = 401;
       // Audit log for failed login
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
           success: false,
         });
       } catch {}
-    } else if (error.message === 'INVALID_PASSWORD') {
+    } else if ((error as Error).message === 'INVALID_PASSWORD') {
       message = 'Incorrect password';
       status = 401;
       // Audit log for failed login
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
           success: false,
         });
       } catch {}
-    } else if (error.message === 'SOCIAL_AUTH_ONLY') {
+    } else if ((error as Error).message === 'SOCIAL_AUTH_ONLY') {
       message = 'Please use Google to sign in to this account';
       status = 401;
     }

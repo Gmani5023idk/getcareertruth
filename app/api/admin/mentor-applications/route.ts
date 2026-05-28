@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 import { auditLog, AuditAction } from '@/lib/audit-log';
 import { adminRateLimit, extractClientIp } from '@/lib/ratelimit';
+import { authorizeRoute } from '@/lib/auth-utils';
 
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.id || (session.user as any).role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const authErr = authorizeRoute(session, ['ADMIN']);
+    if (authErr) return authErr;
 
     // Defence-in-depth: admin rate limiting
     const clientIp = extractClientIp(req);
@@ -45,7 +47,7 @@ export async function GET(req: NextRequest) {
     });
 
     await auditLog({
-      userId: session.user.id,
+      userId: session!.user.id,
       action: AuditAction.ADMIN_ACTION,
       entity: 'MentorApplication',
       metadata: { action: 'LIST_APPLICATIONS', count: applications.length },
@@ -53,7 +55,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(applications);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Fetch mentor applications error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

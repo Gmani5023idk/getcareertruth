@@ -4,9 +4,12 @@ import { sendPaymentConfirmedEmail, sendMeetingCreatedEmail } from '@/lib/email'
 
 /**
  * Performs post-payment actions for a booking:
- * 1. Creates a Zoom meeting
+ * 1. Creates a Zoom meeting (tracks status via meetingStatus field)
  * 2. Initializes a chat conversation
  * 3. Sends confirmation emails to both parties
+ *
+ * Failures in any step are tracked on the Booking record (meetingStatus/aiStatus)
+ * rather than thrown, so downstream callers (e.g. webhook) can proceed.
  */
 export async function processConfirmedBooking(bookingId: string) {
   const booking = await prisma.booking.findUnique({
@@ -41,8 +44,14 @@ export async function processConfirmedBooking(bookingId: string) {
   let meetingLink = booking.meetingLink;
   let conversationId = booking.conversationId;
 
-  // 1. Create Zoom meeting if not exists
+  // 1. Create Zoom meeting if not exists — tracks status via meetingStatus
   if (!meetingLink) {
+    // Signal that meeting creation is in progress
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: { meetingStatus: 'CREATING' },
+    });
+
     try {
       const employeeEmail = booking.employee.email;
       if (!employeeEmail) throw new Error('Employee email missing');
@@ -63,10 +72,15 @@ export async function processConfirmedBooking(bookingId: string) {
 
       await prisma.booking.update({
         where: { id: bookingId },
-        data: { meetingLink },
+        data: { meetingLink, meetingStatus: 'ACTIVE' },
       });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('Failed to create Zoom meeting:', error);
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: { meetingStatus: 'FAILED', meetingError: errorMessage },
+      });
     }
   }
 

@@ -19,7 +19,7 @@ export const pusher = new Pusher({
 export async function triggerEvent(
   channel: string,
   event: string,
-  data: any
+  data: unknown
 ) {
   try {
     await pusher.trigger(channel, event, data);
@@ -35,7 +35,7 @@ export async function triggerEvent(
  */
 export async function triggerNewMessage(
   conversationId: string,
-  message: any
+  message: unknown
 ) {
   return triggerEvent(`conversation-${conversationId}`, 'new-message', message);
 }
@@ -75,7 +75,7 @@ export async function triggerMessageRead(
  */
 export async function triggerConversationUpdate(
   conversationId: string,
-  data: any
+  data: unknown
 ) {
   return triggerEvent(`conversation-${conversationId}`, 'conversation-update', data);
 }
