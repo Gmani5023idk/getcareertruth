@@ -11,7 +11,7 @@
  *   3. npx tsx scripts/migrate-bank-encryption.ts
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, type Prisma } from '@prisma/client';
 import crypto from 'crypto';
 
 const prisma = new PrismaClient();
@@ -118,7 +118,7 @@ async function main() {
           const upiId = rawRow[oldUpiCol || ''] as string | null;
 
           // Check if new encrypted columns are already populated
-          const alreadyEncrypted = newBankCol && (app as any)[newBankCol] !== null;
+          const alreadyEncrypted = newBankCol && (app as Record<string, unknown>)[newBankCol] !== null;
 
           if (!alreadyEncrypted) {
             if (bankAccount && newBankCol) {
@@ -145,7 +145,7 @@ async function main() {
     if (Object.keys(updates).length > 0) {
       await prisma.mentorApplication.update({
         where: { id: app.id },
-        data: updates as any,
+        data: updates as Prisma.MentorApplicationUpdateInput,
       });
       migratedCount++;
       console.log(`  ✓ Migrated application ${app.id}`);

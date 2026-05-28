@@ -53,6 +53,20 @@ enum ApplicationStatus {
   REJECTED
 }
 
+enum MeetingStatus {
+  CREATING
+  ACTIVE
+  FAILED
+  NOT_APPLICABLE
+}
+
+enum AiStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 enum PayoutStatus {
   PENDING
   PROCESSING
@@ -88,6 +102,7 @@ model User {
   profilePhoto       String?
   emailVerified      DateTime?
   isDeleted          Boolean                   @default(false)
+  isBanned           Boolean                   @default(false)
   accounts           Account[]
   bookingsAsEmployee Booking[]                 @relation("EmployeeBookings")
   bookingsAsParent   Booking[]                 @relation("ParentBookings")
@@ -123,6 +138,8 @@ model StudentProfile {
   collegeEmail      String?
   isCollegeVerified Boolean       @default(false)
   city              String?
+  phone             String?
+  email             String?
   targetIndustries  String[]
   targetCompanies   String[]
   bio               String?       @db.VarChar(150)
@@ -193,6 +210,8 @@ model ParentProfile {
   userId        String   @unique
   fullName      String
   city          String?
+  phone         String?
+  email         String?
   childStage    String?
   childCourse   String?
   concerns      String[]
@@ -241,6 +260,10 @@ model Booking {
   razorpayOrderId        String?
   razorpayPaymentId      String?
   razorpayPayoutId       String?
+  meetingStatus          MeetingStatus @default(CREATING)
+  meetingError           String?
+  aiStatus               AiStatus      @default(PENDING)
+  aiError                String?
   amountPaid             Int
   platformFee            Int           @default(0)
   employeePayout         Int           @default(0)
@@ -270,6 +293,7 @@ model Booking {
   @@index([employeeId])                          // Fix 3: employee booking lookup
   @@index([employeeId, status])                  // Fix 3: compound — employee's filtered bookings
   @@index([scheduledAt])                         // Fix 3: daily/weekly schedule queries
+  @@index([aiStatus])                            // Gap 3: cron job to find bookings needing AI processing
 }
 
 // ─── Review ───────────────────────────────────────────────────────
