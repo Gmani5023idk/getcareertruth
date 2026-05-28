@@ -21,7 +21,9 @@ interface PayoutBooking {
 export default function AdminPayoutsPanel() {
   const [bookings, setBookings] = useState<PayoutBooking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'FAILED' | 'PROCESSING' | 'PAID' | 'PENDING'>('FAILED');
+type PayoutTab = 'FAILED' | 'PROCESSING' | 'PAID' | 'PENDING';
+
+  const [activeTab, setActiveTab] = useState<PayoutTab>('FAILED');
 
   useEffect(() => {
     fetchPayouts();
@@ -33,8 +35,8 @@ export default function AdminPayoutsPanel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch payouts');
       setBookings(data);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error(error instanceof Error ? (error as Error).message : 'Failed to fetch payouts');
     } finally {
       setLoading(false);
     }
@@ -55,8 +57,8 @@ export default function AdminPayoutsPanel() {
 
       toast.success('Payout retried successfully!');
       fetchPayouts();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error(error instanceof Error ? (error as Error).message : 'Failed to retry payout');
     }
   };
 
@@ -100,7 +102,7 @@ export default function AdminPayoutsPanel() {
         ].map(tab => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
+            onClick={() => setActiveTab(tab.id as PayoutTab)}
             className={`flex items-center gap-2.5 px-6 py-3 rounded-xl text-sm font-black transition-all duration-300 ${
               activeTab === tab.id 
               ? 'bg-surface shadow-xl text-text-primary scale-[1.02]' 

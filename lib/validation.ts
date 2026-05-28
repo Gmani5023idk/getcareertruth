@@ -13,45 +13,45 @@ import { sanitizeInput, validatePayloadSize, validatePassword } from '@/lib/sani
 export const VALIDATION_SCHEMAS = {
   // Authentication
   login: {
-    email: (value: any) => sanitizeInput(value, 'email'),
-    password: (value: any) => sanitizeInput(value, 'string', { maxLength: 128 }),
+    email: (value: unknown) => sanitizeInput(value, 'email'),
+    password: (value: unknown) => sanitizeInput(value, 'string', { maxLength: 128 }),
   },
 
   signup: {
-    name: (value: any) => sanitizeInput(value, 'string', { maxLength: 100 }),
-    email: (value: any) => sanitizeInput(value, 'email'),
-    phone: (value: any) => sanitizeInput(value, 'phone'),
-    password: (value: any) => {
+    name: (value: unknown) => sanitizeInput(value, 'string', { maxLength: 100 }),
+    email: (value: unknown) => sanitizeInput(value, 'email'),
+    phone: (value: unknown) => sanitizeInput(value, 'phone'),
+    password: (value: unknown) => {
       const sanitized = sanitizeInput(value, 'string', { maxLength: 128 });
-      validatePassword(sanitized);
+      validatePassword(sanitized as string);
       return sanitized;
     },
   },
 
   // Booking
   booking: {
-    employeeId: (value: any) => sanitizeInput(value, 'string', { maxLength: 50 }),
-    timeSlot: (value: any) => sanitizeInput(value, 'string', { maxLength: 50 }),
-    topics: (value: any) => sanitizeInput(value, 'string', { maxLength: 500 }),
-    notes: (value: any) => sanitizeInput(value, 'string', { maxLength: 1000 }),
+    employeeId: (value: unknown) => sanitizeInput(value, 'string', { maxLength: 50 }),
+    timeSlot: (value: unknown) => sanitizeInput(value, 'string', { maxLength: 50 }),
+    topics: (value: unknown) => sanitizeInput(value, 'string', { maxLength: 500 }),
+    notes: (value: unknown) => sanitizeInput(value, 'string', { maxLength: 1000 }),
   },
 
   // Chat
   message: {
-    conversationId: (value: any) => sanitizeInput(value, 'string', { maxLength: 50 }),
-    content: (value: any) => sanitizeInput(value, 'string', { maxLength: 5000 }),
+    conversationId: (value: unknown) => sanitizeInput(value, 'string', { maxLength: 50 }),
+    content: (value: unknown) => sanitizeInput(value, 'string', { maxLength: 5000 }),
   },
 
   // Review
   review: {
-    bookingId: (value: any) => sanitizeInput(value, 'string', { maxLength: 50 }),
-    rating: (value: any) => sanitizeInput(value, 'number', { min: 1, max: 5 }),
-    comment: (value: any) => sanitizeInput(value, 'string', { maxLength: 1000 }),
+    bookingId: (value: unknown) => sanitizeInput(value, 'string', { maxLength: 50 }),
+    rating: (value: unknown) => sanitizeInput(value, 'number', { min: 1, max: 5 }),
+    comment: (value: unknown) => sanitizeInput(value, 'string', { maxLength: 1000 }),
   },
 
   // File upload
   fileUpload: {
-    fileName: (value: any) => sanitizeInput(value, 'filename'),
+    fileName: (value: unknown) => sanitizeInput(value, 'filename'),
   },
 };
 
@@ -59,21 +59,21 @@ export const VALIDATION_SCHEMAS = {
  * Validate request body against schema
  */
 export function validateRequestBody<T>(
-  body: any,
-  schema: Record<string, (value: any) => any>
+  body: unknown,
+  schema: Record<string, (value: unknown) => unknown>
 ): T {
   if (!body || typeof body !== 'object') {
     throw new Error('Invalid request body');
   }
 
-  const result: any = {};
+  const result: Record<string, unknown> = {};
 
   for (const [key, validator] of Object.entries(schema)) {
-    if (body[key] !== undefined) {
+    if ((body as Record<string, unknown>)[key] !== undefined) {
       try {
-        result[key] = validator(body[key]);
-      } catch (error: any) {
-        throw new Error(`Invalid ${key}: ${error.message}`);
+        result[key] = validator((body as Record<string, unknown>)[key]);
+      } catch (error) {
+        throw new Error(`Invalid ${key}: ${(error as Error).message}`);
       }
     }
   }
@@ -86,17 +86,17 @@ export function validateRequestBody<T>(
  */
 export function validateQueryParams(
   searchParams: URLSearchParams,
-  schema: Record<string, (value: any) => any>
-): Record<string, any> {
-  const result: any = {};
+  schema: Record<string, (value: unknown) => unknown>
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
 
   for (const [key, validator] of Object.entries(schema)) {
     const value = searchParams.get(key);
     if (value !== null) {
       try {
         result[key] = validator(value);
-      } catch (error: any) {
-        throw new Error(`Invalid query parameter ${key}: ${error.message}`);
+      } catch (error) {
+        throw new Error(`Invalid query parameter ${key}: ${(error as Error).message}`);
       }
     }
   }
@@ -108,13 +108,13 @@ export function validateQueryParams(
  * Create validation middleware for API routes
  */
 export function withValidation<T>(
-  schema: Record<string, (value: any) => any>,
+  schema: Record<string, (value: unknown) => unknown>,
   handler: (request: NextRequest, validatedData: T) => Promise<NextResponse>
 ) {
   return async (request: NextRequest) => {
     try {
       // Parse request body
-      let body: any = {};
+      let body: Record<string, unknown> = {};
       if (request.method !== 'GET' && request.method !== 'HEAD') {
         try {
           body = await request.json();
@@ -129,9 +129,9 @@ export function withValidation<T>(
       // Validate payload size
       try {
         validatePayloadSize(body);
-      } catch (error: any) {
+      } catch (error) {
         return NextResponse.json(
-          { error: error.message },
+          { error: (error as Error).message },
           { status: 413 }
         );
       }
@@ -140,18 +140,18 @@ export function withValidation<T>(
       let validatedData: T;
       try {
         validatedData = validateRequestBody<T>(body, schema);
-      } catch (error: any) {
+      } catch (error) {
         return NextResponse.json(
-          { error: error.message },
+          { error: (error as Error).message },
           { status: 400 }
         );
       }
 
       // Call handler with validated data
       return await handler(request, validatedData);
-    } catch (error: any) {
+    } catch (error) {
       return NextResponse.json(
-        { error: 'Validation failed', message: error.message },
+        { error: 'Validation failed', message: (error as Error).message },
         { status: 400 }
       );
     }
@@ -170,8 +170,8 @@ export function validateFileUpload(file: File, maxSize: number = 10 * 1024 * 102
   // Check file name
   try {
     sanitizeInput(file.name, 'filename');
-  } catch (error: any) {
-    throw new Error(`Invalid file name: ${error.message}`);
+  } catch (error) {
+    throw new Error(`Invalid file name: ${(error as Error).message}`);
   }
 
   // Check file type (basic validation)
@@ -193,9 +193,9 @@ export function validateFileUpload(file: File, maxSize: number = 10 * 1024 * 102
 /**
  * Sanitize error messages before sending to client
  */
-export function sanitizeError(error: any): { error: string; message?: string } {
+export function sanitizeError(error: unknown): { error: string; message?: string } {
   // Don't expose internal error details
-  const message = error.message || 'An error occurred';
+  const message = (error as Error).message || 'An error occurred';
 
   // Remove any potential sensitive information
   const sanitized = message

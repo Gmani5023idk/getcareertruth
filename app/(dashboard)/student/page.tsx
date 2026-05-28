@@ -195,7 +195,7 @@ export default function StudentDashboard() {
                   </h2>
                 </div>
                 <Suspense fallback={<div className="h-48 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary/20" /></div>}>
-                  {session?.user?.id && <TranscriptList userId={session.user.id} role={(session.user as any).role || 'STUDENT'} />}
+                  {session?.user?.id && <TranscriptList userId={session.user.id} role={session.user.role as 'STUDENT' | 'EMPLOYEE' | 'PARENT'} />}
                 </Suspense>
               </div>
             ) : (

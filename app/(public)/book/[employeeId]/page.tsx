@@ -72,8 +72,8 @@ export default function BookEmployeePage() {
           const slotsData = await slotsRes.json();
           setSlots(slotsData.slots || []);
         }
-      } catch (error: any) {
-        toast.error(error.message);
+      } catch (error) {
+        toast.error((error as Error).message);
       } finally {
         setLoading(false);
       }
@@ -121,8 +121,8 @@ export default function BookEmployeePage() {
       setTimeout(() => {
         window.location.href = `/booking/${data.booking.id}`;
       }, 1500);
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (e) {
+      toast.error((e as Error).message);
     } finally {
       setSubmitting(false);
     }

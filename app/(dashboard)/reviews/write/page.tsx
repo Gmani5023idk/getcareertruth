@@ -40,8 +40,8 @@ function WriteReviewContent() {
         }
 
         setBooking(data);
-      } catch (error: any) {
-        toast.error(error.message);
+      } catch (error) {
+        toast.error((error as Error).message);
         router.push('/student');
       } finally {
         setLoading(false);
@@ -80,8 +80,8 @@ function WriteReviewContent() {
       setTimeout(() => {
         router.push('/student');
       }, 2000);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setSubmitting(false);
     }

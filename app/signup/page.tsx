@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
+import type { Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,7 +54,9 @@ const parentSchema = baseSchema.extend({
   childGrade: z.string().min(1, "Child's grade/stage is required"),
 });
 
-type FormData = z.infer<typeof studentSchema> & z.infer<typeof employeeSchema> & z.infer<typeof parentSchema>;
+// Intersection of all schemas so all fields are accessible in form methods
+// Validated per-step via the dynamic currentSchema at runtime
+type FormData = z.output<typeof studentSchema> & z.output<typeof employeeSchema> & z.output<typeof parentSchema>;
 
 // --- Components ---
 
@@ -71,11 +74,21 @@ export default function SignupFlow() {
   }, [role]);
 
   const methods = useForm<FormData>({
-    resolver: zodResolver(currentSchema as any),
+    resolver: zodResolver(currentSchema) as unknown as Resolver<FormData>,
     mode: 'onChange',
     defaultValues: {
+      role: undefined,
+      fullName: '',
+      email: '',
+      password: '',
       interests: [],
       topics: [],
+      company: '',
+      designation: '',
+      yearsOfExp: '',
+      hourlyRate: '',
+      childName: '',
+      childGrade: '',
     }
   });
 
@@ -92,12 +105,12 @@ export default function SignupFlow() {
   const totalSteps = steps.length;
 
   const nextStep = async () => {
-    let fieldsToValidate: any[] = [];
-    if (step === 2) fieldsToValidate = ['fullName', 'email', 'password'];
-    if (step === 3 && role === 'employee') fieldsToValidate = ['company', 'designation', 'yearsOfExp'];
+    const fieldsToValidate: Array<keyof FormData & string> = [];
+    if (step === 2) fieldsToValidate.push('fullName', 'email', 'password');
+    if (step === 3 && role === 'employee') fieldsToValidate.push('company', 'designation', 'yearsOfExp');
     
     if (fieldsToValidate.length > 0) {
-      const isStepValid = await trigger(fieldsToValidate as any);
+      const isStepValid = await trigger(fieldsToValidate);
       if (!isStepValid) return;
     }
 
@@ -106,7 +119,7 @@ export default function SignupFlow() {
 
   const prevStep = () => setStep(s => Math.max(s - 1, 1));
 
-  const onSubmit = async (data: FormData) => {
+  const onSubmit = async (data: Record<string, unknown>) => {
     setIsLoading(true);
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -162,7 +175,7 @@ export default function SignupFlow() {
                       <button
                         key={r.id}
                         type="button"
-                        onClick={() => { setSelectedRole(r.id as any); setValue('role', r.id as any); nextStep(); }}
+                        onClick={() => { setSelectedRole(r.id as 'student' | 'employee' | 'parent'); setValue('role', r.id as 'student' | 'employee' | 'parent'); nextStep(); }}
                         className="w-full h-24 p-6 flex items-center gap-6 bg-surface border-2 border-border rounded-3xl hover:border-primary/40 hover:bg-surface-2 transition-all group active:scale-[0.98]"
                       >
                          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform shadow-sm">

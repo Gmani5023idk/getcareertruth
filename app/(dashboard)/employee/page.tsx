@@ -84,8 +84,8 @@ export default function EmployeeDashboard() {
       if (!res.ok) throw new Error('Failed to approve');
       toast.success('Booking approved!');
       setPendingRequests(prev => prev.filter(b => b.id !== bookingId));
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     }
   };
 
@@ -100,8 +100,8 @@ export default function EmployeeDashboard() {
       if (!res.ok) throw new Error('Failed to cancel');
       toast.success('Request rejected');
       setPendingRequests(prev => prev.filter(b => b.id !== bookingId));
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     }
   };
 

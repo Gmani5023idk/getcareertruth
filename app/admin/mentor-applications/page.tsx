@@ -38,8 +38,8 @@ export default function AdminMentorApplications() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch');
       setApplications(data);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -60,8 +60,8 @@ export default function AdminMentorApplications() {
 
       toast.success('Application approved!');
       setApplications(prev => prev.filter(a => a.id !== id));
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     }
   };
 
@@ -83,8 +83,8 @@ export default function AdminMentorApplications() {
       setApplications(prev => prev.filter(a => a.id !== rejectingId));
       setRejectingId(null);
       setRejectionReason('');
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     }
   };
 

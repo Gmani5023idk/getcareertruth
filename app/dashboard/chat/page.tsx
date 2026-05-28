@@ -70,7 +70,7 @@ export default function ChatPage() {
             <div className="h-full bg-surface border border-border rounded-2xl overflow-hidden glass">
               <ChatWindow
                 conversationId={selectedId || ''}
-                otherParticipant={mockConversations[0].otherParticipant as any}
+                otherParticipant={mockConversations[0].otherParticipant}
                 messages={[]}
                 onSendMessage={() => {}}
                 onTypingStart={() => {}}

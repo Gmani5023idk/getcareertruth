@@ -46,9 +46,9 @@ export default function ParentDashboard() {
         if (!res.ok) throw new Error('Failed to load dashboard');
         const json = await res.json();
         setDashboardData(json.data);
-      } catch (err: any) {
+      } catch (err) {
         console.error('Failed to fetch dashboard:', err);
-        setError(err.message || 'Failed to load dashboard');
+        setError((err as Error).message || 'Failed to load dashboard');
       } finally {
         setLoading(false);
       }
@@ -78,9 +78,9 @@ export default function ParentDashboard() {
       });
       if (!res.ok) throw new Error('Failed to save');
       setEditingChild(false);
-      setDashboardData((prev: any) => ({
+      setDashboardData((prev: Record<string, unknown>) => ({
         ...prev,
-        profile: { ...prev.profile, ...childForm },
+        profile: { ...(prev.profile as Record<string, unknown> || {}), ...childForm },
       }));
     } catch {
       // silent

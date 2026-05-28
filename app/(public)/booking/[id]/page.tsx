@@ -19,7 +19,7 @@ import FeeBreakdownUI from '@/components/booking/FeeBreakdownUI';
 
 declare global {
   interface Window {
-    Razorpay: any;
+    Razorpay: unknown;
   }
 }
 
@@ -94,7 +94,7 @@ export default function BookingPage() {
         currency: orderData.currency,
         name: 'GetCareerTruth',
         order_id: orderData.orderId,
-        handler: async (response: any) => {
+        handler: async (response: Record<string, string>) => {
           await fetch('/api/payments/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -107,7 +107,8 @@ export default function BookingPage() {
           window.location.reload();
         },
       };
-      const rzp = new window.Razorpay(options);
+      const Razorpay = window.Razorpay as unknown as new (options: Record<string, unknown>) => { open: () => void };
+      const rzp = new Razorpay(options);
       rzp.open();
     } catch (e) {
       console.error(e);

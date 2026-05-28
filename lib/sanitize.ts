@@ -9,9 +9,10 @@ import { JSDOM } from 'jsdom';
 import DOMPurify from 'dompurify';
 
 // Initialize DOMPurify with a server-side DOM
-const window = new JSDOM('').window;
+const jsdomWindow = new JSDOM('').window;
 // DOMPurify expects a WindowLike type; jsdom's Window satisfies this at runtime
-const purify = DOMPurify(window as any);
+type DOMPurifyWindow = Parameters<typeof DOMPurify>[0];
+const purify = DOMPurify(jsdomWindow as unknown as DOMPurifyWindow);
 
 // Password strength levels
 export enum PasswordStrength {
@@ -277,7 +278,7 @@ export function sanitizeFileName(input: string): string {
 /**
  * Validate JSON input
  */
-export function validateJSON(input: string): any {
+export function validateJSON(input: string): unknown {
   try {
     const parsed = JSON.parse(input);
 
@@ -295,7 +296,7 @@ export function validateJSON(input: string): any {
 /**
  * Sanitize array input
  */
-export function sanitizeArray<T>(input: any[], validator: (item: any) => T, maxLength: number = 100): T[] {
+export function sanitizeArray<T>(input: unknown[], validator: (item: unknown) => T, maxLength: number = 100): T[] {
   if (!Array.isArray(input)) {
     throw new Error('Input must be an array');
   }
@@ -311,18 +312,18 @@ export function sanitizeArray<T>(input: any[], validator: (item: any) => T, maxL
  * Validate object input
  */
 export function validateObject<T>(
-  input: any,
-  schema: Record<string, (value: any) => any>
+  input: unknown,
+  schema: Record<string, (value: unknown) => unknown>
 ): T {
   if (typeof input !== 'object' || input === null) {
     throw new Error('Input must be an object');
   }
 
-  const result: any = {};
+  const result: Record<string, unknown> = {};
 
   for (const [key, validator] of Object.entries(schema)) {
-    if (input[key] !== undefined) {
-      result[key] = validator(input[key]);
+    if ((input as Record<string, unknown>)[key] !== undefined) {
+      result[key] = validator((input as Record<string, unknown>)[key]);
     }
   }
 
@@ -361,7 +362,7 @@ export function sanitizeHTML(input: string): string {
 /**
  * Validate request payload size
  */
-export function validatePayloadSize(payload: any, maxSize: number = 10 * 1024 * 1024): void {
+export function validatePayloadSize(payload: unknown, maxSize: number = 10 * 1024 * 1024): void {
   const size = JSON.stringify(payload).length;
 
   if (size > maxSize) {
@@ -372,24 +373,24 @@ export function validatePayloadSize(payload: any, maxSize: number = 10 * 1024 * 
 /**
  * Sanitize and validate user input based on type
  */
-export function sanitizeInput(input: any, type: string, options?: any): any {
+export function sanitizeInput(input: unknown, type: string, options?: Record<string, unknown>): unknown {
   switch (type) {
     case 'string':
-      return sanitizeString(input, options?.maxLength);
+      return sanitizeString(input as string, options?.maxLength as number | undefined);
     case 'email':
-      return sanitizeEmail(input);
+      return sanitizeEmail(input as string);
     case 'phone':
-      return sanitizePhone(input);
+      return sanitizePhone(input as string);
     case 'url':
-      return sanitizeURL(input);
+      return sanitizeURL(input as string);
     case 'number':
-      return sanitizeNumber(input, options?.min, options?.max);
+      return sanitizeNumber(input as string, options?.min as number | undefined, options?.max as number | undefined);
     case 'filename':
-      return sanitizeFileName(input);
+      return sanitizeFileName(input as string);
     case 'json':
-      return validateJSON(input);
+      return validateJSON(input as string);
     case 'html':
-      return sanitizeHTML(input);
+      return sanitizeHTML(input as string);
     default:
       throw new Error(`Unknown input type: ${type}`);
   }
