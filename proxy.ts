@@ -123,7 +123,11 @@ export async function proxy(request: NextRequest) {
   // ────────────────────────────────────────────────────────────────────────────
   // 4. CSRF Protection for all API mutation endpoints
   // ────────────────────────────────────────────────────────────────────────────
-  if (isApiRoute && MUTATION_METHODS.includes(method)) {
+  // NOTE: Payment webhooks are EXEMPT from CSRF — they authenticate via
+  // Razorpay HMAC signature verification in the route handler. Razorpay
+  // sends an Origin header from api.razorpay.com which would fail our
+  // ALLOWED_ORIGINS check (only app domains are whitelisted).
+  if (isApiRoute && MUTATION_METHODS.includes(method) && pathname !== '/api/payments/webhook') {
     const origin = request.headers.get('origin');
     const referer = request.headers.get('referer');
 
