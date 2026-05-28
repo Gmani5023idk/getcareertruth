@@ -16,6 +16,14 @@ const ALLOWED_ORIGINS = [
   'https://www.getcareertruth.in',
 ];
 
+// Optional IP allowlist for admin routes (comma-separated)
+const ADMIN_ALLOWED_IPS = (process.env.ADMIN_ALLOWED_IPS || '')
+  .split(',')
+  .map((ip) => ip.trim())
+  .filter(Boolean);
+
+const MUTATION_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+
 const SECURITY_HEADERS = {
   'X-DNS-Prefetch-Control': 'on',
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
@@ -26,11 +34,32 @@ const SECURITY_HEADERS = {
   'X-XSS-Protection': '1; mode=block',
 };
 
+// Admin route prefixes (edge-level defense in depth — route handlers self-protect)
+const ADMIN_PREFIXES = ['/admin', '/api/admin/'];
+
+function isAdminRoute(pathname: string): boolean {
+  return ADMIN_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
+}
+
 export async function proxy(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
+  const { pathname, protocol } = request.nextUrl;
+  const method = request.method;
+  const isAdmin = isAdminRoute(pathname);
+  const isApiRoute = pathname.startsWith('/api/');
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // 0. HTTPS Enforcement (production only)
+  // ────────────────────────────────────────────────────────────────────────────
+  if (process.env.NODE_ENV === 'production' && protocol === 'http:') {
+    const httpsUrl = request.nextUrl.clone();
+    httpsUrl.protocol = 'https:';
+    return NextResponse.redirect(httpsUrl);
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
   // 1. Protect Dashboard Routes
+  // ────────────────────────────────────────────────────────────────────────────
   if (pathname.startsWith('/dashboard')) {
     if (!token) {
       console.log('Proxy: Redirecting unauthenticated user from dashboard to login');
@@ -43,13 +72,15 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // ────────────────────────────────────────────────────────────────────────────
   // 2. Protect Auth Routes (Redirect authenticated users appropriately)
+  // ────────────────────────────────────────────────────────────────────────────
   if (pathname.startsWith('/login') || pathname.startsWith('/get-started')) {
     if (token) {
       // If user has a role, redirect to their dashboard
       if (token.role) {
         console.log('Proxy: Redirecting authenticated user with role to dashboard');
-        return NextResponse.redirect(new URL(`/dashboard/${(token.role as string).toLowerCase()}`, request.url));
+        return NextResponse.redirect(new URL(`/dashboard/${token.role.toLowerCase()}`, request.url));
       }
       // If user doesn't have a role (new user), redirect to onboarding
       else {
@@ -59,12 +90,71 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 3. CORS headers for API routes
-  if (pathname.startsWith('/api/')) {
+  // ────────────────────────────────────────────────────────────────────────────
+  // 3. Admin Route Enforcement (edge-level defense in depth)
+  // ────────────────────────────────────────────────────────────────────────────
+  if (isAdmin) {
+    if (!token) {
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('callbackUrl', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    if (token.role !== 'ADMIN') {
+      if (isApiRoute) {
+        return NextResponse.json({ error: 'Forbidden: admin access required' }, { status: 403 });
+      }
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+
+    // IP allowlist (optional, admin only)
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || request.headers.get('x-real-ip')?.trim()
+      || '127.0.0.1';
+    if (ADMIN_ALLOWED_IPS.length > 0 && !ADMIN_ALLOWED_IPS.includes(clientIp)) {
+      console.warn(`Admin access denied for IP: ${clientIp} on path: ${pathname}`);
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // 4. CSRF Protection for all API mutation endpoints
+  // ────────────────────────────────────────────────────────────────────────────
+  if (isApiRoute && MUTATION_METHODS.includes(method)) {
+    const origin = request.headers.get('origin');
+    const referer = request.headers.get('referer');
+
+    // Bypass if neither origin nor referer is sent (e.g., server-to-server/Vercel Cron)
+    if (origin) {
+      const isAllowed = ALLOWED_ORIGINS.some((allowed) => {
+        try { return new URL(origin).origin === new URL(allowed).origin; }
+        catch { return false; }
+      });
+      if (!isAllowed) {
+        return NextResponse.json({ error: 'Forbidden: invalid origin' }, { status: 403 });
+      }
+    } else if (referer) {
+      const isAllowed = ALLOWED_ORIGINS.some((allowed) => {
+        try { return new URL(referer).origin === new URL(allowed).origin; }
+        catch { return false; }
+      });
+      if (!isAllowed) {
+        return NextResponse.json({ error: 'Forbidden: invalid referer' }, { status: 403 });
+      }
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // 5. CORS headers for API routes
+  // ────────────────────────────────────────────────────────────────────────────
+  if (isApiRoute) {
     const origin = request.headers.get('origin') || '';
 
     // Handle preflight requests
-    if (request.method === 'OPTIONS') {
+    if (method === 'OPTIONS') {
       if (ALLOWED_ORIGINS.includes(origin) || !origin) {
         return new NextResponse(null, {
           status: 204,
@@ -80,8 +170,10 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 4. Rate Limiting for API routes
-  if (pathname.startsWith('/api/')) {
+  // ────────────────────────────────────────────────────────────────────────────
+  // 6. Rate Limiting for API routes + Security Headers
+  // ────────────────────────────────────────────────────────────────────────────
+  if (isApiRoute) {
     try {
       const origin = request.headers.get('origin') || '';
       const config = getRateLimitConfigForPath(pathname);
@@ -100,14 +192,17 @@ export async function proxy(request: NextRequest) {
       Object.entries(getRateLimitHeaders(result)).forEach(([key, value]) => response.headers.set(key, value));
       Object.entries(SECURITY_HEADERS).forEach(([key, value]) => response.headers.set(key, value));
       return response;
-    } catch (error: any) {
-      if (error.statusCode === 429) {
+    } catch (error) {
+      if ((error as Record<string, unknown>).statusCode === 429) {
         return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
       }
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
   }
 
+  // ────────────────────────────────────────────────────────────────────────────
+  // 7. Security Headers for non-API routes (pages, static, etc.)
+  // ────────────────────────────────────────────────────────────────────────────
   const response = NextResponse.next();
   Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {
     response.headers.set(key, value);
