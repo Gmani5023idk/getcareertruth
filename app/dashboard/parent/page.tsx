@@ -23,12 +23,14 @@ import {
   Star,
   HeartHandshake,
   FileText,
+  AlertTriangle,
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { format, parseISO } from 'date-fns';
+import RaiseDisputeModal from '@/components/dispute/RaiseDisputeModal';
 
 export default function ParentDashboard() {
   const { data: session } = useSession();
@@ -38,6 +40,7 @@ export default function ParentDashboard() {
   const [editingChild, setEditingChild] = useState(false);
   const [childForm, setChildForm] = useState({ childCourse: '', childStage: '', concerns: [] as string[], openToConnect: true });
   const [savingChild, setSavingChild] = useState(false);
+  const [disputeBookingId, setDisputeBookingId] = useState<string | null>(null);
   useEffect(() => {
     if (!session?.user?.id) return;
     const fetchData = async () => {
@@ -58,15 +61,17 @@ export default function ParentDashboard() {
 
   // Initialize child edit form when data loads
   useEffect(() => {
-    if (dashboardData?.profile) {
-      setChildForm({
-        childCourse: dashboardData.profile.childCourse || '',
-        childStage: dashboardData.profile.childStage || 'Career Planning',
-        concerns: dashboardData.profile.concerns || [],
-        openToConnect: dashboardData.profile.openToConnect ?? true,
-      });
-    }
-  }, [dashboardData]);
+      if (dashboardData?.profile) {
+        setTimeout(() => {
+          setChildForm({
+            childCourse: dashboardData.profile.childCourse || '',
+            childStage: dashboardData.profile.childStage || 'Career Planning',
+            concerns: dashboardData.profile.concerns || [],
+            openToConnect: dashboardData.profile.openToConnect ?? true,
+          });
+        }, 0);
+      }
+    }, [dashboardData]);
 
   const saveChildProfile = async () => {
     setSavingChild(true);
@@ -128,7 +133,7 @@ export default function ParentDashboard() {
       <div className="min-h-screen bg-bg text-text-primary pb-24 sm:pb-0">
         {/* Skeleton Nav */}
         <nav className="border-b border-border bg-surface/50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div className="flex items-center gap-8">
               <div className="w-24 h-8 bg-surface-3 rounded-lg animate-pulse" />
               <div className="hidden md:flex gap-6">
@@ -143,7 +148,7 @@ export default function ParentDashboard() {
             </div>
           </div>
         </nav>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
           {/* Welcome Skeleton */}
           <div className="mb-8 sm:mb-12">
             <div className="h-10 w-64 bg-surface-3 rounded-lg animate-pulse mb-3" />
@@ -227,7 +232,7 @@ export default function ParentDashboard() {
 
   return (
     <div className="min-h-screen bg-bg text-text-primary pb-24 sm:pb-0">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
+      <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 lg:py-12">
         {/* Welcome Banner */}
         <div className="mb-8 sm:mb-12">
           <h1 className="text-3xl sm:text-5xl font-black tracking-tight mb-2">
@@ -248,7 +253,7 @@ export default function ParentDashboard() {
                 <GraduationCap className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-lg font-black">{childName || 'Your Child'}'s Profile</h3>
+                <h3 className="text-lg font-black">{childName || 'Your Child'}&apos;s Profile</h3>
                 <p className="text-xs text-text-secondary font-medium">
                   {childForm.childCourse || childStage}
                   {childForm.childCourse ? ` · ${childStage}` : ''}
@@ -417,10 +422,25 @@ export default function ParentDashboard() {
                           <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border ${
                             booking.status === 'CONFIRMED'
                               ? 'bg-success/10 text-success border-success/20'
+                              : booking.status === 'COMPLETED'
+                              ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
                               : 'bg-warning/10 text-warning border-warning/20'
                           }`}>
-                            {booking.status === 'CONFIRMED' ? 'Confirmed' : 'Pending'}
+                            {booking.status === 'CONFIRMED' ? 'Confirmed' : booking.status === 'COMPLETED' ? 'Completed' : 'Pending'}
                           </span>
+                          {booking.disputeStatus === 'OPEN' ? (
+                            <span className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border bg-orange-500/10 text-orange-500 border-orange-500/20">
+                              Disputed
+                            </span>
+                          ) : ['CONFIRMED', 'COMPLETED', 'PENDING_PAYMENT', 'PENDING_CONFIRM'].includes(booking.status) && booking.disputeStatus === 'NONE' ? (
+                            <button
+                              onClick={() => setDisputeBookingId(booking.id)}
+                              className="px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border border-orange-500/20 bg-orange-500/5 text-orange-500 hover:bg-orange-500/10 transition-all"
+                            >
+                              <AlertTriangle className="w-3 h-3 inline-block mr-1" />
+                              Dispute
+                            </button>
+                          ) : null}
                           {booking.conversationId && (
                             <Link href={`/chat?conversation=${booking.conversationId}`}>
                               <Button variant="secondary" className="text-[9px] font-black uppercase tracking-widest h-10 px-3 flex items-center gap-2">
@@ -437,7 +457,7 @@ export default function ParentDashboard() {
                 <Card className="p-16 text-center border-dashed border-2 bg-surface-2/30">
                   <GraduationCap className="w-12 h-12 text-text-muted mx-auto mb-4" />
                   <h3 className="text-lg font-black mb-1">No active sessions</h3>
-                  <p className="text-text-secondary mb-6">Find a mentor to help guide your child's career.</p>
+                  <p className="text-text-secondary mb-6">Find a mentor to help guide your child&apos;s career.</p>
                   <Link href="/employees">
                     <Button variant="primary" className="shadow-lg shadow-primary/20">Browse Mentors</Button>
                   </Link>
@@ -654,7 +674,7 @@ export default function ParentDashboard() {
                     <Users className="w-4 h-4" /> Find Mentors
                   </Button>
                 </Link>
-                <Link href="/bookings">
+                <Link href="/dashboard/bookings">
                   <Button variant="secondary" className="w-full justify-start gap-3 h-12 text-[10px] font-black uppercase tracking-widest">
                     <BookOpen className="w-4 h-4" /> View Bookings
                   </Button>
@@ -664,6 +684,28 @@ export default function ParentDashboard() {
           </div>
         </div>
       </main>
+
+      {/* Raise Dispute Modal */}
+      <RaiseDisputeModal
+        bookingId={disputeBookingId || ''}
+        isOpen={disputeBookingId !== null}
+        onClose={() => setDisputeBookingId(null)}
+        onSuccess={() => {
+          // Refresh dashboard data after dispute is raised
+          const fetchData = async () => {
+            try {
+              const res = await fetch('/api/dashboard/parent');
+              if (res.ok) {
+                const json = await res.json();
+                setDashboardData(json.data);
+              }
+            } catch {
+              // silent
+            }
+          };
+          fetchData();
+        }}
+      />
     </div>
   );
 }

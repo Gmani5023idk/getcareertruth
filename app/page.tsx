@@ -12,6 +12,7 @@ import Card from '@/components/ui/Card';
 import GlassCard from '@/components/animations/GlassCard';
 import TiltCard from '@/components/animations/TiltCard';
 import StickyNav from '@/components/animations/StickyNav';
+import JourneyArcWrapper from '@/components/JourneyArcWrapper';
 
 export default function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -34,7 +35,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-bg selection:bg-accent/30 overflow-x-hidden">
       {/* Navbar */}
       <StickyNav>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-[64px] sm:h-[72px]">
             {/* Logo */}
             <Logo />
@@ -46,6 +47,7 @@ export default function LandingPage() {
                 { name: 'For Students', href: '/students' },
                 { name: 'For Employees', href: '/for-employees' },
                 { name: 'For Parents', href: '/parents' },
+                { name: 'My Bookings', href: '/bookings' },
                 { name: 'Pricing', href: '/pricing' },
               ].map((item) => (
                 <Link 
@@ -100,18 +102,18 @@ export default function LandingPage() {
         </div>
       </StickyNav>
 
-      {/* Hero Section */}
-      <section className="relative pt-12 sm:pt-20 pb-20 sm:pb-32 overflow-hidden">
+      {/* Hero — two-column layout with JourneyArc */}
+      <section className="relative pt-12 sm:pt-20 pb-20 sm:pb-32 overflow-hidden lg:min-h-[560px]">
         {/* Background Decorative Elements */}
         <div className="absolute inset-0 -z-10 hidden sm:block">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-primary/10 rounded-full blur-[120px] opacity-20"></div>
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] sm:w-[800px] sm:h-[800px] bg-primary/10 rounded-full blur-[120px] opacity-20"></div>
           <div className="absolute -top-20 -left-20 w-96 h-96 bg-accent/10 rounded-full blur-[100px] opacity-10"></div>
         </div>
         
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="flex flex-col lg:flex-row items-center lg:items-start justify-between gap-12 sm:gap-20">
-            {/* Left Content */}
-            <div className="flex-1 min-w-0 w-full">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+            {/* Left Column — Hero Copy */}
+            <div className="w-full">
               <motion.div 
                 initial="initial"
                 animate="animate"
@@ -155,13 +157,18 @@ export default function LandingPage() {
                 </motion.div>
               </motion.div>
             </div>
+
+            {/* Right Column — JourneyArc Visualization */}
+            <div className="hidden lg:block relative w-full h-full min-h-[460px] overflow-hidden rounded-2xl dark:border-cyan-500/20 border-blue-200/40 border shadow-lg">
+              <JourneyArcWrapper />
+            </div>
           </div>
         </div>
       </section>
 
       {/* Problem Section */}
       <section className="py-20 sm:py-32 bg-surface/30 relative">
-        <div className="max-w-7xl mx-auto px-4">
+        <div className="max-w-screen-2xl mx-auto px-4">
           <div className="text-center mb-16 sm:mb-24">
             <motion.p 
               initial={{ opacity: 0 }}
@@ -183,7 +190,7 @@ export default function LandingPage() {
               className="text base sm:text-lg text-text-secondary max-w-2xl mx-auto font-medium"
             >
               Influencers and placement cells focus on metrics, not your happiness. 
-              We're here to change that.
+              We&apos;re here to change that.
             </motion.p>
           </div>
 
@@ -218,12 +225,12 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="py-16 sm:py-24 px-4 border-t border-border bg-surface/20">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-screen-2xl mx-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 mb-16 sm:mb-20">
             <div className="col-span-1 lg:col-span-2 space-y-6 sm:space-y-8">
               <Logo className="-ml-1" />
               <p className="text-text-secondary text-base sm:text-lg max-w-sm leading-relaxed font-medium">
-                Empowering the next generation with unfiltered, human career insights from people who've actually been there.
+                Empowering the next generation with unfiltered, human career insights from people who&apos;ve actually been there.
               </p>
               <div className="flex gap-4">
                 {['twitter', 'linkedin', 'instagram'].map((social) => (
