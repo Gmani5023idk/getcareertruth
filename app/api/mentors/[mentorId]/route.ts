@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { auth } from '@/lib/auth';
 
 /**
  * Computes the next occurrence date for a recurring weekly slot.
@@ -60,15 +61,28 @@ export async function GET(
     const application = mentor.mentorApplications[0];
     const profile = mentor.mentorProfile;
 
-    return NextResponse.json({
+    // SEC: Check authentication to strip sensitive fields for unauthenticated users
+    const session = await auth();
+    const isAuthenticated = !!session?.user?.id;
+
+    // Public fields: name, photo, college, domain, bio, rating
+    // Sensitive fields: sessionRate, availabilitySlots, reviewsCount, email
+    // Unauthenticated users see public profile only — pricing/availability
+    // are competitor-harvestable and require a booking intent.
+    const response: Record<string, unknown> = {
       id: mentor.id,
       name: mentor.studentProfile?.fullName || 'Anonymous',
       photo: profile?.photoUrl || mentor.profilePhoto,
       college: application.collegeName,
       domain: application.domain,
       bio: profile?.bio || application.bio,
-      sessionRate: application.sessionRate,
-      availabilitySlots: (profile?.availabilitySlots || []).map((slot) => ({
+      rating: profile?.rating || 0,
+    };
+
+    if (isAuthenticated) {
+      // Authenticated users get full profile including pricing and availability
+      response.sessionRate = application.sessionRate;
+      response.availabilitySlots = (profile?.availabilitySlots || []).map((slot) => ({
         id: slot.id,
         dayOfWeek: slot.dayOfWeek,
         startTime: slot.startTime,
@@ -76,10 +90,11 @@ export async function GET(
         timezone: slot.timezone,
         start: computeNextSlotDate(slot.dayOfWeek, slot.startTime),
         end: computeNextSlotDate(slot.dayOfWeek, slot.endTime),
-      })),
-      rating: profile?.rating || 0,
-      reviewsCount: profile?.reviewsCount || 0,
-    });
+      }));
+      response.reviewsCount = profile?.reviewsCount || 0;
+    }
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Fetch mentor profile error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
