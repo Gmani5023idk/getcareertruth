@@ -37,7 +37,24 @@ export async function POST(req: NextRequest) {
     });
 
     // Idempotency check: prevent duplicate processing
-    const alreadyProcessed = await isWebhookEventProcessed(eventId, 'razorpay');
+    // SEC: Fail-closed — if DB is unreachable, return 503 so Razorpay retries.
+    let alreadyProcessed: boolean;
+    try {
+      alreadyProcessed = await isWebhookEventProcessed(eventId, 'razorpay');
+    } catch (dbError) {
+      console.error('Webhook idempotency check failed (DB unavailable):', dbError);
+      await auditLog({
+        action: AuditAction.WEBHOOK_FAILED,
+        entity: 'RazorpayWebhook',
+        entityId: eventId,
+        metadata: { error: 'Idempotency check failed — DB unavailable', detail: (dbError as Error).message },
+        success: false,
+      }).catch(() => {});
+      return NextResponse.json(
+        { error: 'Service temporarily unavailable — please retry' },
+        { status: 503 }
+      );
+    }
     if (alreadyProcessed) {
       return NextResponse.json({ status: 'already_processed' });
     }
@@ -51,6 +68,7 @@ export async function POST(req: NextRequest) {
     const payment = event.payload.payment.entity;
     const paymentId = payment.id;
     const orderId = payment.order_id;
+    const paidAmount = payment.amount; // Razorpay sends amount in paise
 
     // Find booking by order ID
     const booking = await prisma.booking.findFirst({
@@ -66,6 +84,19 @@ export async function POST(req: NextRequest) {
         success: false,
       });
       return NextResponse.json({ error: 'Booking not found for order' }, { status: 404 });
+    }
+
+    // Verify the paid amount matches the expected amount (paise)
+    const expectedPaise = booking.amountPaid * 100;
+    if (paidAmount !== expectedPaise) {
+      await auditLog({
+        action: AuditAction.WEBHOOK_FAILED,
+        entity: 'RazorpayWebhook',
+        entityId: eventId,
+        metadata: { error: 'Amount mismatch', orderId, expected: expectedPaise, received: paidAmount },
+        success: false,
+      });
+      return NextResponse.json({ error: 'Amount mismatch' }, { status: 400 });
     }
 
     // If already confirmed, skip
@@ -108,7 +139,23 @@ export async function POST(req: NextRequest) {
     });
 
     // Mark event as processed for idempotency
-    await markWebhookEventProcessed(eventId, 'razorpay');
+    // SEC: Fail-closed — if marking fails, return 503 to prevent duplicate processing
+    try {
+      await markWebhookEventProcessed(eventId, 'razorpay');
+    } catch (markError) {
+      console.error('Failed to mark webhook as processed (DB unavailable):', markError);
+      await auditLog({
+        action: AuditAction.WEBHOOK_FAILED,
+        entity: 'RazorpayWebhook',
+        entityId: eventId,
+        metadata: { error: 'Failed to mark processed — DB unavailable', detail: (markError as Error).message },
+        success: false,
+      }).catch(() => {});
+      return NextResponse.json(
+        { error: 'Service temporarily unavailable — please retry' },
+        { status: 503 }
+      );
+    }
 
     return NextResponse.json({ status: 'processed' });
   } catch (error) {
@@ -119,6 +166,6 @@ export async function POST(req: NextRequest) {
       metadata: { error: (error as Error).message },
       success: false,
     }).catch(() => {});
-    return NextResponse.json({ error: (error as Error).message || 'Webhook processing failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
 }

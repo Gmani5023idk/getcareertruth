@@ -60,39 +60,37 @@ export function verifyRazorpayWebhook(
 
 /**
  * Check if a webhook event has already been processed (idempotency check).
+ *
+ * SEC: Fail-closed — throws on DB failure so the caller returns 503.
+ * Razorpay retries webhook delivery automatically (up to 24h with backoff),
+ * so a delayed confirmation during a DB outage is far safer than duplicate
+ * payment processing, double Zoom meetings, or double billing.
  */
 export async function isWebhookEventProcessed(
   eventId: string,
   provider: string
 ): Promise<boolean> {
-  try {
-    const { prisma } = await import('@/lib/db');
-    const existing = await prisma.webhookEvent.findUnique({
-      where: { id: eventId },
-    });
-    return !!existing;
-  } catch (error) {
-    console.error('Webhook idempotency check error:', error);
-    return false; // If DB is down, allow processing (fail open)
-  }
+  const { prisma } = await import('@/lib/db');
+  const existing = await prisma.webhookEvent.findUnique({
+    where: { id: eventId },
+  });
+  return !!existing;
 }
 
 /**
  * Mark a webhook event as processed (idempotency).
+ *
+ * SEC: Fail-closed — throws on DB failure so the caller returns 503.
  */
 export async function markWebhookEventProcessed(
   eventId: string,
   provider: string
 ): Promise<void> {
-  try {
-    const { prisma } = await import('@/lib/db');
-    await prisma.webhookEvent.create({
-      data: {
-        id: eventId,
-        provider,
-      },
-    });
-  } catch (error) {
-    console.error('Failed to mark webhook event as processed:', error);
-  }
+  const { prisma } = await import('@/lib/db');
+  await prisma.webhookEvent.create({
+    data: {
+      id: eventId,
+      provider,
+    },
+  });
 }
