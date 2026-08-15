@@ -7,6 +7,9 @@
  * - Registration: 3 accounts per hour per IP
  * - Admin: 3 attempts per 15 minutes per IP
  *
+ * SEC: Falls back to in-memory sliding window when Redis is unavailable,
+ * so no endpoint is ever fully unprotected.
+ *
  * Environment variables:
  * - UPSTASH_REDIS_REST_URL
  * - UPSTASH_REDIS_REST_TOKEN
@@ -14,6 +17,7 @@
 
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
+import { inMemoryLimit } from '@/lib/in-memory-rate-limit';
 
 // Create Redis client
 let redis: Redis | null = null;
@@ -30,11 +34,18 @@ try {
 
 function createLimiter(maxRequests: number, windowSeconds: number): Ratelimit {
   if (!redis) {
-    // Return a no-op limiter that always allows when Redis is unavailable
+    // SEC: In-memory fallback — never allow all requests when Redis is down.
+    const windowMs = windowSeconds * 1000;
+    console.warn(`[rate-limit] Redis unavailable — using in-memory fallback (maxRequests=${maxRequests}, windowMs=${windowMs})`);
     return {
       limit: async (identifier: string) => {
-        console.warn(`Rate limiter unavailable (Redis not configured), allowing request for ${identifier}`);
-        return { success: true, limit: maxRequests, remaining: maxRequests, reset: Date.now() };
+        const result = inMemoryLimit(identifier, maxRequests, windowMs);
+        return {
+          success: result.success,
+          limit: result.limit,
+          remaining: result.remaining,
+          reset: result.reset,
+        };
       },
     } as Ratelimit;
   }

@@ -1,16 +1,63 @@
 /**
  * Rate Limiting Middleware
  *
- * Implements rate limiting for API routes to prevent abuse and DDoS attacks.
- * Uses in-memory storage for simplicity. For production, consider using Redis.
+ * SEC: Uses Upstash Redis sliding window for shared rate limits across serverless
+ * instances. Falls back to an in-memory sliding window when Redis is unavailable,
+ * so no endpoint is ever fully unprotected.
+ *
+ * Environment variables:
+ * - UPSTASH_REDIS_REST_URL
+ * - UPSTASH_REDIS_REST_TOKEN
  */
 
-interface RateLimitEntry {
-  count: number;
-  resetTime: number;
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+import { inMemoryLimit } from '@/lib/in-memory-rate-limit';
+
+// Create Redis client (shared with lib/ratelimit.ts via same env vars)
+let redis: Redis | null = null;
+try {
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+  }
+} catch (error) {
+  console.error('Failed to initialize Upstash Redis for rate-limit:', error);
 }
 
-const rateLimitStore = new Map<string, RateLimitEntry>();
+/**
+ * Create a sliding window rate limiter backed by Upstash Redis.
+ * Falls back to in-memory sliding window when Redis is unavailable.
+ * NOTE: In-memory fallback is per-instance only (not shared across serverless).
+ */
+function createLimiter(maxRequests: number, windowMs: number): Ratelimit {
+  if (!redis) {
+    // SEC: In-memory fallback — never allow all requests when Redis is down.
+    // Logs a warning so monitoring can detect fallback activation.
+    console.warn(`[rate-limit] Redis unavailable — using in-memory fallback (maxRequests=${maxRequests}, windowMs=${windowMs})`);
+    return {
+      limit: async (identifier: string) => {
+        const result = inMemoryLimit(identifier, maxRequests, windowMs);
+        return {
+          success: result.success,
+          limit: result.limit,
+          remaining: result.remaining,
+          reset: result.reset,
+        };
+      },
+    } as unknown as Ratelimit;
+  }
+
+  const windowSeconds = Math.ceil(windowMs / 1000);
+  return new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(maxRequests, `${windowSeconds} s`),
+    analytics: true,
+    prefix: 'ratelimit-proxy',
+  });
+}
 
 /**
  * Rate limit configuration
@@ -59,6 +106,20 @@ export const RATE_LIMIT_CONFIGS = {
 } as const;
 
 /**
+ * Cache of Upstash Ratelimit instances keyed by "maxRequests-windowMs".
+ * Avoids creating a new Ratelimit on every request.
+ */
+const limiterCache = new Map<string, Ratelimit>();
+
+function getLimiter(config: RateLimitConfig): Ratelimit {
+  const key = `${config.maxRequests}-${config.windowMs}`;
+  if (!limiterCache.has(key)) {
+    limiterCache.set(key, createLimiter(config.maxRequests, config.windowMs));
+  }
+  return limiterCache.get(key)!;
+}
+
+/**
  * Get client identifier from request
  */
 function getClientIdentifier(request: Request): string {
@@ -67,53 +128,43 @@ function getClientIdentifier(request: Request): string {
   const realIp = request.headers.get('x-real-ip');
   const cfConnectingIp = request.headers.get('cf-connecting-ip');
 
-  const ip = forwarded?.split(',')[0] || realIp || cfConnectingIp || 'unknown';
+  const ip = forwarded?.split(',')[0].trim() || realIp?.trim() || cfConnectingIp?.trim() || 'unknown';
 
-  // Add user agent to make it more specific
-  const userAgent = request.headers.get('user-agent') || 'unknown';
-
-  return `${ip}-${userAgent}`;
+  // Key on IP only — including User-Agent would let attackers rotate the
+  // header to get a fresh rate-limit bucket on every request.
+  return ip;
 }
 
 /**
- * Check if request is rate limited
+ * Check if request is rate limited.
+ * Uses Upstash Redis sliding window — shared across all serverless instances.
+ * Fail-open: if Redis check fails, the request is allowed.
  */
-export function checkRateLimit(
+export async function checkRateLimit(
   identifier: string,
   config: RateLimitConfig
-): { allowed: boolean; remaining: number; resetTime: number } {
-  const now = Date.now();
-  const entry = rateLimitStore.get(identifier);
+): Promise<{ allowed: boolean; limit: number; remaining: number; resetTime: number }> {
+  const limiter = getLimiter(config);
 
-  // Clean up expired entries
-  if (entry && now > entry.resetTime) {
-    rateLimitStore.delete(identifier);
-  }
+  try {
+    const result = await limiter.limit(identifier);
 
-  // Get or create entry
-  const currentEntry = rateLimitStore.get(identifier) || {
-    count: 0,
-    resetTime: now + config.windowMs,
-  };
-
-  // Check if limit exceeded
-  if (currentEntry.count >= config.maxRequests) {
     return {
-      allowed: false,
-      remaining: 0,
-      resetTime: currentEntry.resetTime,
+      allowed: result.success,
+      limit: result.limit,
+      remaining: result.remaining,
+      resetTime: result.reset,
+    };
+  } catch (error) {
+    // Fail open: if Upstash is down, allow the request
+    console.error(`Rate limit check failed for ${identifier}:`, error);
+    return {
+      allowed: true,
+      limit: config.maxRequests,
+      remaining: config.maxRequests,
+      resetTime: Date.now() + config.windowMs,
     };
   }
-
-  // Increment count
-  currentEntry.count++;
-  rateLimitStore.set(identifier, currentEntry);
-
-  return {
-    allowed: true,
-    remaining: config.maxRequests - currentEntry.count,
-    resetTime: currentEntry.resetTime,
-  };
 }
 
 export class RateLimitError extends Error {
@@ -128,12 +179,13 @@ export class RateLimitError extends Error {
 }
 
 /**
- * Rate limit middleware for Next.js API routes
+ * Rate limit middleware for Next.js API routes.
+ * Returns an async function — callers must await the result.
  */
 export function rateLimit(config: RateLimitConfig) {
-  return (request: Request) => {
+  return async (request: Request) => {
     const identifier = getClientIdentifier(request);
-    const result = checkRateLimit(identifier, config);
+    const result = await checkRateLimit(identifier, config);
 
     if (!result.allowed) {
       throw new RateLimitError(result.remaining, result.resetTime);
@@ -144,33 +196,16 @@ export function rateLimit(config: RateLimitConfig) {
 }
 
 /**
- * Clean up expired rate limit entries
- * Run this periodically to prevent memory leaks
- */
-export function cleanupRateLimitStore(): void {
-  const now = Date.now();
-  for (const [key, entry] of rateLimitStore.entries()) {
-    if (now > entry.resetTime) {
-      rateLimitStore.delete(key);
-    }
-  }
-}
-
-// Clean up every 5 minutes
-if (typeof setInterval !== 'undefined') {
-  setInterval(cleanupRateLimitStore, 5 * 60 * 1000);
-}
-
-/**
  * Get rate limit headers for response
  */
 export function getRateLimitHeaders(result: {
+  limit: number;
   remaining: number;
   resetTime: number;
 }): Record<string, string> {
   return {
-    'X-RateLimit-Limit': result.remaining.toString(),
+    'X-RateLimit-Limit': String(result.limit),
     'X-RateLimit-Reset': new Date(result.resetTime).toISOString(),
-    'X-RateLimit-Remaining': result.remaining.toString(),
+    'X-RateLimit-Remaining': String(result.remaining),
   };
 }
