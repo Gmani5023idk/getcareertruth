@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
 }
 
@@ -9,7 +9,371 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ─── Enums ───────────────────────────────────────────────────────
+model User {
+  id                 String                    @id @default(cuid())
+  email              String                    @unique
+  phone              String?
+  passwordHash       String?
+  googleId           String?                   @unique
+  role               Role?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  isEmailVerified    Boolean                   @default(false)
+  profilePhoto       String?
+  emailVerified      DateTime?
+  isDeleted          Boolean                   @default(false)
+  isBanned           Boolean                   @default(false)
+  accounts           Account[]
+  auditLogs          AuditLog[]
+  bookingsAsEmployee Booking[]                 @relation("EmployeeBookings")
+  bookingsAsParent   Booking[]                 @relation("ParentBookings")
+  bookingsAsStudent  Booking[]                 @relation("StudentBookings")
+  sentMessages       ChatMessage[]             @relation("SentMessages")
+  conversations      ConversationParticipant[]
+  employeeProfile    EmployeeProfile?
+  mentorApplications MentorApplication[]
+  mentorProfile      MentorProfile?
+  parentProfile      ParentProfile?
+  sessions           Session[]
+  studentProfile     StudentProfile?
+  idVerifications    IdVerification[]
+
+  @@index([role])
+  @@index([role, createdAt])
+}
+
+model StudentProfile {
+  id                String        @id @default(cuid())
+  userId            String        @unique
+  fullName          String
+  educationType     EducationType
+  schoolName        String?
+  className         String?
+  stream            String?
+  collegeName       String?
+  degree            String?
+  branch            String?
+  currentYear       String?
+  collegeEmail      String?
+  isCollegeVerified Boolean       @default(false)
+  city              String?
+  targetIndustries  String[]
+  targetCompanies   String[]
+  bio               String?       @db.VarChar(150)
+  savedEmployees    String[]
+  createdAt         DateTime      @default(now())
+  email             String?
+  phone             String?
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmployeeProfile {
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  fullName           String
+  company            String
+  jobTitle           String
+  industry           String
+  yearsExp           Int
+  college            String?
+  degree             String?
+  graduationYear     Int?
+  bio                String?            @db.VarChar(300)
+  topics             String[]
+  pricePerCall       Int                @default(0)
+  linkedInUrl        String?
+  linkedInTitle      String?
+  linkedInCompany    String?
+  companyEmail       String?
+  verificationStatus VerificationStatus @default(PENDING)
+  rating             Float              @default(0)
+  totalCalls         Int                @default(0)
+  totalEarned        Int                @default(0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  payoutDetails      String?
+  payoutMethod       String?
+  verifiedAt         DateTime?
+  verificationNotes  String?
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews            Review[]
+  transcripts        Transcript[]
+  availabilitySlots  AvailabilitySlot[]
+
+  @@index([verificationStatus])
+  @@index([industry])
+}
+
+model ParentProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  fullName      String
+  city          String?
+  childStage    String?
+  childCourse   String?
+  concerns      String[]
+  openToConnect Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  email         String?
+  phone         String?
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AvailabilitySlot {
+  id                String           @id @default(cuid())
+  employeeProfileId String?
+  mentorProfileId   String?
+  dayOfWeek         Int
+  startTime         String
+  endTime           String
+  timezone          String           @default("Asia/Kolkata")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  employeeProfile   EmployeeProfile? @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  mentorProfile     MentorProfile?   @relation(fields: [mentorProfileId], references: [id], onDelete: Cascade)
+
+  @@index([employeeProfileId])
+  @@index([mentorProfileId])
+  @@index([employeeProfileId, dayOfWeek])
+  @@index([mentorProfileId, dayOfWeek])
+  @@map("availability_slots")
+}
+
+model Booking {
+  id                     String          @id @default(cuid())
+  studentId              String?
+  parentId               String?
+  employeeId             String
+  scheduledAt            DateTime
+  durationMins           Int             @default(15)
+  status                 BookingStatus   @default(PENDING_CONFIRM)
+  topic                  String?         @db.VarChar(300)
+  meetingLink            String?
+  razorpayOrderId        String?
+  razorpayPaymentId      String?
+  amountPaid             Int
+  platformFee            Int             @default(0)
+  employeePayout         Int             @default(0)
+  payoutStatus           PayoutStatus    @default(PENDING)
+  studentMarkedComplete  Boolean         @default(false)
+  employeeMarkedComplete Boolean         @default(false)
+  completedAt            DateTime?
+  cancelledAt            DateTime?
+  cancelReason           String?
+  reminderSentAt         DateTime?
+  refundAmount           Int?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  conversationId         String?         @unique
+  notes                  String?         @db.VarChar(500)
+  disputeStatus          DisputeStatus   @default(NONE)
+  razorpayPayoutId       String?
+  aiError                String?
+  aiStatus               AiStatus        @default(PENDING)
+  meetingError           String?
+  meetingStatus          MeetingStatus   @default(CREATING)
+  conversation           Conversation?   @relation(fields: [conversationId], references: [id])
+  employee               User            @relation("EmployeeBookings", fields: [employeeId], references: [id])
+  parent                 User?           @relation("ParentBookings", fields: [parentId], references: [id])
+  student                User?           @relation("StudentBookings", fields: [studentId], references: [id])
+  payoutAttempts         PayoutAttempt[]
+  review                 Review?
+  transcript             Transcript?
+
+  @@unique([employeeId, scheduledAt])
+  @@index([status])
+  @@index([employeeId])
+  @@index([employeeId, status])
+  @@index([scheduledAt])
+  @@index([aiStatus])
+  @@index([parentId])
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
+  @@index([studentId])
+}
+
+model Review {
+  id         String          @id @default(cuid())
+  bookingId  String          @unique
+  employeeId String
+  rating     Int
+  text       String?         @db.VarChar(300)
+  isPublic   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  booking    Booking         @relation(fields: [bookingId], references: [id])
+  employee   EmployeeProfile @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+}
+
+model Transcript {
+  id                  String          @id @default(cuid())
+  bookingId           String          @unique
+  employeeId          String
+  content             String          @db.VarChar(5000)
+  cloudinaryUrl       String?
+  summary             String?         @db.VarChar(1000)
+  keyPoints           String[]
+  actionItems         String[]
+  sentiment           String?
+  sentimentConfidence Float?
+  topics              String[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  booking             Booking         @relation(fields: [bookingId], references: [id])
+  employee            EmployeeProfile @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+}
+
+model Conversation {
+  id           String                    @id @default(cuid())
+  type         ConversationType
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+  booking      Booking?
+  messages     ChatMessage[]
+  participants ConversationParticipant[]
+
+  @@index([updatedAt])
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime     @default(now())
+  lastRead       DateTime?
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String       @db.VarChar(1000)
+  type           MessageType  @default(TEXT)
+  attachmentUrl  String?
+  attachmentName String?
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model MentorApplication {
+  id                   String            @id @default(cuid())
+  userId               String
+  collegeName          String
+  currentYear          String
+  branch               String
+  domain               String
+  bio                  String?
+  linkedinUrl          String?
+  sessionRate          Int
+  status               ApplicationStatus @default(PENDING_ADMIN_REVIEW)
+  rejectionReason      String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  bankAccountEncrypted String?
+  bankIfscEncrypted    String?
+  upiEncrypted         String?
+  user                 User              @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([userId])
+}
+
+model MentorProfile {
+  id                String             @id @default(cuid())
+  userId            String             @unique
+  photoUrl          String?
+  bio               String?
+  rating            Float              @default(0)
+  reviewsCount      Int                @default(0)
+  user              User               @relation(fields: [userId], references: [id])
+  availabilitySlots AvailabilitySlot[]
+}
+
+model PayoutAttempt {
+  id               String   @id @default(cuid())
+  bookingId        String
+  attemptedAt      DateTime @default(now())
+  status           String
+  razorpayResponse Json?
+  booking          Booking  @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+}
+
+model WebhookEvent {
+  id          String   @id
+  provider    String
+  processedAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  success   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
 
 enum Role {
   STUDENT
@@ -87,397 +451,38 @@ enum MessageType {
   FILE
 }
 
-// ─── User ─────────────────────────────────────────────────────────
-
-model User {
-  id                 String                    @id @default(cuid())
-  email              String                    @unique
-  phone              String?
-  passwordHash       String?
-  googleId           String?                   @unique
-  role               Role?
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
-  isEmailVerified    Boolean                   @default(false)
-  profilePhoto       String?
-  emailVerified      DateTime?
-  isDeleted          Boolean                   @default(false)
-  isBanned           Boolean                   @default(false)
-  accounts           Account[]
-  bookingsAsEmployee Booking[]                 @relation("EmployeeBookings")
-  bookingsAsParent   Booking[]                 @relation("ParentBookings")
-  bookingsAsStudent  Booking[]                 @relation("StudentBookings")
-  sentMessages       ChatMessage[]             @relation("SentMessages")
-  conversations      ConversationParticipant[]
-  employeeProfile    EmployeeProfile?
-  parentProfile      ParentProfile?
-  sessions           Session[]
-  studentProfile     StudentProfile?
-  mentorProfile      MentorProfile?
-  mentorApplications MentorApplication[]
-  auditLogs          AuditLog[]
-
-  @@index([role])                              // Fix 3: frequent role-based queries
-  @@index([role, createdAt])                   // Fix 3: compound index for filtered listing
+// SEC: ID verification document storage for mentor/employee identity checks.
+// Documents auto-expire after 90 days. Access restricted to admin/verification role.
+enum IdVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
 }
 
-// ─── Student Profile ──────────────────────────────────────────────
-
-model StudentProfile {
-  id                String        @id @default(cuid())
-  userId            String        @unique
-  fullName          String
-  educationType     EducationType
-  schoolName        String?
-  className         String?
-  stream            String?
-  collegeName       String?
-  degree            String?
-  branch            String?
-  currentYear       String?
-  collegeEmail      String?
-  isCollegeVerified Boolean       @default(false)
-  city              String?
-  phone             String?
-  email             String?
-  targetIndustries  String[]
-  targetCompanies   String[]
-  bio               String?       @db.VarChar(150)
-  savedEmployees    String[]
-  createdAt         DateTime      @default(now())
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+enum IdDocumentType {
+  AADHAAR
+  PAN
+  PASSPORT
+  DRIVING_LICENCE
 }
 
-// ─── Employee Profile ─────────────────────────────────────────────
-//
-// Verification is consolidated into a single enum + timestamps:
-//   verificationStatus — UNVERIFIED | PENDING | VERIFIED | REJECTED
-//   verifiedAt         — when the employee was last verified
-//   verificationNotes  — admin notes about verification outcome
-//
-// All old boolean/string verification fields (isLinkedInVerified,
-// isCompanyEmailVerified, isIdVerified, isTeamVerified, idDocumentUrl,
-// idDocumentType, idDocumentNumber, verificationMethod) have been removed
-// and migrated into verificationStatus.
-//
-// Availability now lives in the separate AvailabilitySlot table (one-to-many).
-// pricePerCall and rating are constrained via DB-level CHECK constraints
-// (pricePerCall >= 0, rating BETWEEN 0.0 AND 5.0).
-//
-// ───────────────────────────────────────────────────────────────────
-
-model EmployeeProfile {
-  id                 String             @id @default(cuid())
-  userId             String             @unique
-  fullName           String
-  company            String
-  jobTitle           String
-  industry           String
-  yearsExp           Int
-  college            String?
-  degree             String?
-  graduationYear     Int?
-  bio                String?            @db.VarChar(300)
-  topics             String[]
-  pricePerCall       Int                @default(0)      // Fix 4: DB CHECK constraint enforces >= 0
-  linkedInUrl        String?
-  linkedInTitle      String?
-  linkedInCompany    String?
-  companyEmail       String?                              // Kept: used for email-based verification workflow
-  verificationStatus VerificationStatus @default(PENDING) // Fix 2: consolidated enum
-  verifiedAt         DateTime?                            // Fix 2: new — when verification occurred
-  verificationNotes  String?                              // Fix 2: new — admin notes
-  rating             Float              @default(0)       // Fix 4: DB CHECK enforces 0.0–5.0
-  totalCalls         Int                @default(0)
-  totalEarned        Int                @default(0)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  payoutDetails      String?
-  payoutMethod       String?
-  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  availabilitySlots  AvailabilitySlot[]                    // Fix 1: relational instead of Json
-  reviews            Review[]
-  transcripts        Transcript[]
-
-  @@index([verificationStatus])            // Fix 3: employee listing by verification
-  @@index([industry])                      // Fix 3: employee filter by industry
-}
-
-// ─── Parent Profile ───────────────────────────────────────────────
-
-model ParentProfile {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  fullName      String
-  city          String?
-  phone         String?
-  email         String?
-  childStage    String?
-  childCourse   String?
-  concerns      String[]
-  openToConnect Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-// ─── Availability Slot (Fix 1) ────────────────────────────────────
-// Replaces raw Json `availabilitySlots` on EmployeeProfile and MentorProfile.
-// Stores recurring weekly slots (dayOfWeek + start/end time + timezone).
-// ───────────────────────────────────────────────────────────────────
-
-model AvailabilitySlot {
-  id                String          @id @default(cuid())
-  employeeProfileId String?
-  mentorProfileId   String?
-  dayOfWeek         Int             // 0=Sunday, 1=Monday, ..., 6=Saturday
-  startTime         String          // HH:mm in 24h format
-  endTime           String          // HH:mm in 24h format
-  timezone          String          @default("Asia/Kolkata")
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  employeeProfile   EmployeeProfile? @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
-  mentorProfile     MentorProfile?   @relation(fields: [mentorProfileId], references: [id], onDelete: Cascade)
-
-  @@index([employeeProfileId])
-  @@index([mentorProfileId])
-  @@index([employeeProfileId, dayOfWeek])   // Fix 3: common query pattern
-  @@index([mentorProfileId, dayOfWeek])
-  @@map("availability_slots")
-}
-
-// ─── Booking ──────────────────────────────────────────────────────
-
-model Booking {
-  id                     String        @id @default(cuid())
-  studentId              String?
-  parentId               String?
-  employeeId             String
-  scheduledAt            DateTime
-  durationMins           Int           @default(15)
-  status                 BookingStatus @default(PENDING_CONFIRM)
-  topic                  String?       @db.VarChar(300)
-  meetingLink            String?
-  razorpayOrderId        String?
-  razorpayPaymentId      String?
-  razorpayPayoutId       String?
-  meetingStatus          MeetingStatus @default(CREATING)
-  meetingError           String?
-  aiStatus               AiStatus      @default(PENDING)
-  aiError                String?
-  amountPaid             Int
-  platformFee            Int           @default(0)
-  employeePayout         Int           @default(0)
-  payoutStatus           PayoutStatus  @default(PENDING)
-  disputeStatus          DisputeStatus @default(NONE)
-  studentMarkedComplete  Boolean       @default(false)
-  employeeMarkedComplete Boolean       @default(false)
-  completedAt            DateTime?
-  cancelledAt            DateTime?
-  cancelReason           String?
-  reminderSentAt         DateTime?
-  refundAmount           Int?
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
-  conversationId         String?       @unique
-  notes                  String?       @db.VarChar(500)
-  conversation           Conversation? @relation(fields: [conversationId], references: [id])
-  employee               User          @relation("EmployeeBookings", fields: [employeeId], references: [id])
-  parent                 User?         @relation("ParentBookings", fields: [parentId], references: [id])
-  student                User?         @relation("StudentBookings", fields: [studentId], references: [id])
-  review                 Review?
-  transcript             Transcript?
-  payoutAttempts         PayoutAttempt[]
-
-  @@unique([employeeId, scheduledAt])
-  @@index([status])                              // Fix 3: status-based queries
-  @@index([employeeId])                          // Fix 3: employee booking lookup
-  @@index([employeeId, status])                  // Fix 3: compound — employee's filtered bookings
-  @@index([scheduledAt])                         // Fix 3: daily/weekly schedule queries
-  @@index([aiStatus])                            // Gap 3: cron job to find bookings needing AI processing
-}
-
-// ─── Review ───────────────────────────────────────────────────────
-
-model Review {
-  id         String          @id @default(cuid())
-  bookingId  String          @unique
-  employeeId String
-  rating     Int                                // DB CHECK enforces 1–5
-  text       String?         @db.VarChar(300)
-  isPublic   Boolean         @default(true)
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
-  booking    Booking         @relation(fields: [bookingId], references: [id])
-  employee   EmployeeProfile @relation(fields: [employeeId], references: [id])
-
-  @@index([employeeId])                        // Fix 3: rating aggregation queries
-}
-
-// ─── Transcript ───────────────────────────────────────────────────
-
-model Transcript {
-  id                  String          @id @default(cuid())
-  bookingId           String          @unique
-  employeeId          String
-  content             String          @db.VarChar(5000)
-  cloudinaryUrl       String?
-  summary             String?         @db.VarChar(1000)
-  keyPoints           String[]
-  actionItems         String[]
-  sentiment           String?
-  sentimentConfidence Float?
-  topics              String[]
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  booking             Booking         @relation(fields: [bookingId], references: [id])
-  employee            EmployeeProfile @relation(fields: [employeeId], references: [id])
-}
-
-// ─── Chat ─────────────────────────────────────────────────────────
-
-model Conversation {
-  id           String                    @id @default(cuid())
-  type         ConversationType
-  createdAt    DateTime                  @default(now())
-  updatedAt    DateTime                  @updatedAt
-  booking      Booking?
-  messages     ChatMessage[]
-  participants ConversationParticipant[]
-
-  @@index([updatedAt])                     // Fix 3: conversation listing sorted by recency
-}
-
-model ConversationParticipant {
-  id             String       @id @default(cuid())
-  conversationId String
-  userId         String
-  joinedAt       DateTime     @default(now())
-  lastRead       DateTime?
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
-  user           User         @relation(fields: [userId], references: [id])
-
-  @@unique([conversationId, userId])
-}
-
-model ChatMessage {
-  id             String       @id @default(cuid())
-  conversationId String
-  senderId       String
-  content        String       @db.VarChar(1000)
-  type           MessageType  @default(TEXT)
-  attachmentUrl  String?
-  attachmentName String?
-  readAt         DateTime?
-  createdAt      DateTime     @default(now())
-  conversation   Conversation @relation(fields: [conversationId], references: [id])
-  sender         User         @relation("SentMessages", fields: [senderId], references: [id])
-
-  @@index([conversationId, createdAt])     // Fix 3: message fetching per conversation
-}
-
-// ─── Auth ─────────────────────────────────────────────────────────
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
+model IdVerification {
+  id           String               @id @default(cuid())
   userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
+  documentType IdDocumentType
+  fileUrl      String
+  status       IdVerificationStatus @default(PENDING)
+  reviewedBy   String?              // Admin user ID who reviewed
+  reviewedAt   DateTime?
+  rejectReason String?
+  expiresAt    DateTime             // Auto-purge after 90 days
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-// ─── Mentor Application ───────────────────────────────────────────
-
-model MentorApplication {
-  id                   String            @id @default(cuid())
-  userId               String
-  user                 User              @relation(fields: [userId], references: [id])
-  collegeName          String
-  currentYear          String
-  branch               String
-  domain               String
-  bio                  String?
-  linkedinUrl          String?
-  sessionRate          Int
-  bankAccountEncrypted String?
-  bankIfscEncrypted    String?
-  upiEncrypted         String?
-  status               ApplicationStatus @default(PENDING_ADMIN_REVIEW)
-  rejectionReason      String?
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-}
-
-// ─── Mentor Profile ───────────────────────────────────────────────
-
-model MentorProfile {
-  id                String            @id @default(cuid())
-  userId            String            @unique
-  user              User              @relation(fields: [userId], references: [id])
-  photoUrl          String?
-  bio               String?
-  // Fix 1: availabilitySlots migrated to AvailabilitySlot model (relation below)
-  availabilitySlots AvailabilitySlot[] // relational instead of Json
-  rating            Float             @default(0)  // Fix 4: DB CHECK enforces 0.0–5.0
-  reviewsCount      Int               @default(0)
-}
-
-// ─── Payments & Audit ────────────────────────────────────────────
-
-model PayoutAttempt {
-  id               String   @id @default(cuid())
-  bookingId        String
-  booking          Booking  @relation(fields: [bookingId], references: [id])
-  attemptedAt      DateTime @default(now())
-  status           String
-  razorpayResponse Json?
-}
-
-model WebhookEvent {
-  id          String   @id
-  provider    String
-  processedAt DateTime @default(now())
-}
-
-model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  action    String
-  entity    String
-  entityId  String?
-  metadata  Json?
-  ipAddress String?
-  userAgent String?
-  success   Boolean  @default(true)
-  createdAt DateTime @default(now())
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([action])
-  @@index([createdAt])
+  @@index([status])
+  @@index([expiresAt])
 }
