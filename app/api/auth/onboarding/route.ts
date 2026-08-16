@@ -16,6 +16,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const existingUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    if (!existingUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // SEC: A user who already completed onboarding must not be able to
+    // re-enter and re-select their role (privilege escalation guard).
+    if (existingUser.role) {
+      return NextResponse.json({ error: 'User already has a role' }, { status: 403 });
+    }
+
     await prisma.user.update({
       where: { email: session.user.email },
       data: { role },

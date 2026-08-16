@@ -36,6 +36,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // SEC: Only participants of the conversation may mark messages as read.
+    // Without this check any authenticated user could touch arbitrary messages (IDOR).
+    const participant = await prisma.conversationParticipant.findUnique({
+      where: {
+        conversationId_userId: {
+          conversationId: message.conversationId,
+          userId,
+        },
+      },
+    });
+
+    if (!participant) {
+      return NextResponse.json(
+        { error: 'Forbidden: not a participant of this conversation' },
+        { status: 403 }
+      );
+    }
+
     // Update message read status
     const updatedMessage = await prisma.chatMessage.update({
       where: { id: messageId },
