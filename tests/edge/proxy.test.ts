@@ -29,12 +29,16 @@ vi.mock('next-auth/jwt', () => ({
 }));
 
 vi.mock('@/lib/rate-limit', () => ({
-  rateLimit: vi.fn(() => (req: unknown) => ({ success: true })),
+  rateLimit: vi.fn(() => async (_req: unknown) => ({
+    allowed: true,
+    remaining: 99,
+    resetTime: Date.now() + 60000,
+  })),
   RATE_LIMIT_CONFIGS: {
-    auth: { limit: 5, window: 900 },
-    chat: { limit: 30, window: 60 },
-    payment: { limit: 10, window: 60 },
-    api: { limit: 100, window: 60 },
+    auth: { maxRequests: 150, windowMs: 900000 },
+    chat: { maxRequests: 20, windowMs: 60000 },
+    payment: { maxRequests: 10, windowMs: 60000 },
+    api: { maxRequests: 100, windowMs: 60000 },
   },
   getRateLimitHeaders: vi.fn(() => ({
     'X-RateLimit-Limit': '100',

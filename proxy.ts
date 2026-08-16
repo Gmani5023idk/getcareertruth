@@ -28,7 +28,29 @@ function getAdminAllowedIps(): string[] {
 
 const MUTATION_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
-const SECURITY_HEADERS = {
+function buildCsp(nonce: string): string {
+  // In development, React requires unsafe-eval and unsafe-inline for hot reloading and dev tools.
+  // The nonce is omitted in dev because CSP spec ignores unsafe-inline when a nonce is present.
+  // In production, only the nonce is allowed for strict script execution.
+  const scriptSrc = process.env.NODE_ENV === 'production'
+    ? `script-src 'self' 'nonce-${nonce}' https://checkout.razorpay.com`
+    : `script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com`;
+  return [
+    `default-src 'self'`,
+    scriptSrc,
+    `style-src 'self' 'unsafe-inline'`,
+    `img-src 'self' data: blob: https://res.cloudinary.com https://lh3.googleusercontent.com https://media.licdn.com https://api.dicebear.com`,
+    `font-src 'self'`,
+    `connect-src 'self' https://*.pusher.com wss://*.pusher.com https://*.sentry.io https://api.razorpay.com`,
+    `frame-src https://api.razorpay.com`,
+    `frame-ancestors 'none'`,
+    `base-uri 'self'`,
+    `form-action 'self'`,
+    `upgrade-insecure-requests`,
+  ].join('; ');
+}
+
+const SECURITY_HEADERS: Record<string, string> = {
   'X-DNS-Prefetch-Control': 'on',
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
   'X-Frame-Options': 'SAMEORIGIN',
@@ -45,7 +67,17 @@ function isAdminRoute(pathname: string): boolean {
   return ADMIN_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
 }
 
+function generateNonce(): string {
+  return Buffer.from(crypto.randomUUID()).toString('base64');
+}
+
+function applyCspHeaders(response: NextResponse, nonce: string) {
+  response.headers.set('Content-Security-Policy', buildCsp(nonce));
+  response.headers.set('x-nonce', nonce);
+}
+
 export async function proxy(request: NextRequest) {
+  const nonce = generateNonce();
   const { pathname, protocol } = request.nextUrl;
   const method = request.method;
   const isAdmin = isAdminRoute(pathname);
@@ -208,7 +240,7 @@ export async function proxy(request: NextRequest) {
     try {
       const origin = request.headers.get('origin') || '';
       const config = getRateLimitConfigForPath(pathname);
-      const result = rateLimit(config)(request);
+      const result = await rateLimit(config)(request);
       const response = NextResponse.next();
 
       // Apply CORS headers for non-preflight API responses
@@ -222,6 +254,7 @@ export async function proxy(request: NextRequest) {
       // Apply rate limit and security headers
       Object.entries(getRateLimitHeaders(result)).forEach(([key, value]) => response.headers.set(key, value));
       Object.entries(SECURITY_HEADERS).forEach(([key, value]) => response.headers.set(key, value));
+      applyCspHeaders(response, nonce);
       return response;
     } catch (error) {
       if ((error as Record<string, unknown>).statusCode === 429) {
@@ -234,10 +267,16 @@ export async function proxy(request: NextRequest) {
   // ────────────────────────────────────────────────────────────────────────────
   // 7. Security Headers for non-API routes (pages, static, etc.)
   // ────────────────────────────────────────────────────────────────────────────
-  const response = NextResponse.next();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
   Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {
     response.headers.set(key, value);
   });
+  applyCspHeaders(response, nonce);
   return response;
 }
 
