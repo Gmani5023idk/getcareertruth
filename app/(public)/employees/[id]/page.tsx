@@ -34,7 +34,6 @@ const mockEmployee = {
   pricePerCall: 1500,
   topics: ['Software Engineering', 'Career Growth', 'FAANG Interview Prep', 'System Design', 'Tech Leadership'],
   verified: true,
-  verificationMethod: 'LINKEDIN',
   location: 'Bangalore',
   avatar: null,
   linkedinUrl: 'https://linkedin.com/in/rahulsharma',

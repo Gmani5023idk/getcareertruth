@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/db';
+import { authorizeRoute } from '@/lib/auth-utils';
 
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const authErr = authorizeRoute(session, ['EMPLOYEE']);
+    if (authErr) return authErr;
+    // @ts-expect-error — session narrowed by authorizeRoute returning null
 
     const userId = session.user.id;
-    const userRole = (session.user as any).role as string;
-
-    if (userRole !== 'EMPLOYEE') {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
 
     // Fetch employee profile
     const employeeProfile = await prisma.employeeProfile.findUnique({
@@ -61,15 +57,12 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Exclude sensitive private fields
+    // Exclude sensitive private fields (companyEmail kept for internal verification flow)
     const {
       companyEmail,
-      idDocumentUrl,
-      idDocumentType,
-      isCompanyEmailVerified,
-      isIdVerified,
-      isTeamVerified,
       verificationStatus,
+      verifiedAt,
+      verificationNotes,
       ...publicData
     } = employeeProfile;
 
@@ -84,10 +77,10 @@ export async function GET(req: NextRequest) {
         stats: { pendingRequests: pendingCount, todaysSessions: todayBookingsCount },
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Get employee me error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch employee data' },
+      { error: (error as Error).message || 'Failed to fetch employee data' },
       { status: 500 }
     );
   }

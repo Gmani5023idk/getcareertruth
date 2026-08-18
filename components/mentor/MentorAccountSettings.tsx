@@ -26,8 +26,8 @@ export default function MentorAccountSettings() {
 
       toast.success('Account closed successfully. We are sorry to see you go!');
       signOut({ callbackUrl: '/' });
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
       setShowConfirm(false);
     } finally {
       setLoading(false);

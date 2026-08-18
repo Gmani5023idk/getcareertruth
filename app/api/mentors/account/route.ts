@@ -96,7 +96,7 @@ export async function DELETE(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true, message: 'Account soft-deleted successfully' });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Account deletion error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

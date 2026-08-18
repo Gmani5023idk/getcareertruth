@@ -14,9 +14,7 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  turbopack: {
-    root: process.cwd(),
-  },
+  turbopack: {}, // Explicit empty config silences the 'no turbopack config' error with custom webpack plugins
   images: {
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',

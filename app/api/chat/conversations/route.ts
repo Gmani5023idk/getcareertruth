@@ -1,3 +1,7 @@
+type ConversationType = 'STUDENT_STUDENT' | 'PARENT_PARENT' | 'STUDENT_EMPLOYEE' | 'PARENT_EMPLOYEE';
+
+const VALID_CONVERSATION_TYPES: ConversationType[] = ['STUDENT_STUDENT', 'PARENT_PARENT', 'STUDENT_EMPLOYEE', 'PARENT_EMPLOYEE'];
+
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
@@ -18,8 +22,8 @@ export async function GET(req: NextRequest) {
 
     const conversations = await prisma.conversation.findMany({
       where: {
-        ...(type && ['STUDENT_STUDENT', 'PARENT_PARENT', 'STUDENT_EMPLOYEE', 'PARENT_EMPLOYEE'].includes(type)
-          ? { type: type as any }
+        ...(type && (VALID_CONVERSATION_TYPES as string[]).includes(type)
+          ? { type: type as ConversationType }
           : {}),
         participants: {
           some: {
@@ -89,10 +93,11 @@ export async function GET(req: NextRequest) {
       { conversations: formattedConversations },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Get conversations error:', error);
+    const message = error instanceof Error ? (error as Error).message : 'Failed to get conversations';
     return NextResponse.json(
-      { error: error.message || 'Failed to get conversations' },
+      { error: message },
       { status: 500 }
     );
   }
@@ -160,10 +165,11 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Create conversation error:', error);
+    const message = error instanceof Error ? (error as Error).message : 'Failed to create conversation';
     return NextResponse.json(
-      { error: error.message || 'Failed to create conversation' },
+      { error: message },
       { status: 500 }
     );
   }

@@ -3,6 +3,7 @@ import { verifyRazorpayPayment } from '@/lib/razorpay';
 import { prisma } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { processConfirmedBooking } from '@/lib/bookings';
+import { auditLog, AuditAction } from '@/lib/audit-log';
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,6 +59,16 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Audit log for successful payment
+    await auditLog({
+      userId: userId,
+      action: AuditAction.PAYMENT_SUCCESS,
+      entity: 'Booking',
+      entityId: bookingId,
+      metadata: { paymentId: razorpay_payment_id, orderId: razorpay_order_id, amount: booking.amountPaid },
+      success: true,
+    });
+
     // Post-payment actions: Zoom meeting, conversation, emails
     const { meetingLink } = await processConfirmedBooking(bookingId);
 
@@ -69,10 +80,10 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error('Verify payment error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to verify payment' },
+      { error: (error as Error).message || 'Failed to verify payment' },
       { status: 500 }
     );
   }

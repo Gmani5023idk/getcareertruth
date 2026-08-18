@@ -79,7 +79,7 @@ export async function GET(
     };
 
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Get booking error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch booking' },

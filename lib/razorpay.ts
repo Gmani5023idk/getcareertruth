@@ -19,7 +19,21 @@ export function rupeesToPaise(rupees: number): number {
 }
 
 /**
+ * Safe error class — user message is safe to show, original error is logged server-side.
+ */
+export class PaymentError extends Error {
+  constructor(
+    public readonly userMessage: string,
+    originalError?: unknown,
+  ) {
+    super(originalError instanceof Error ? originalError.message : String(originalError));
+    this.name = 'PaymentError';
+  }
+}
+
+/**
  * Create a Razorpay order.
+ * Throws PaymentError on failure — userMessage is safe for client, original is logged.
  */
 export async function createRazorpayOrder(options: {
   amount: number;
@@ -27,21 +41,34 @@ export async function createRazorpayOrder(options: {
   receipt?: string;
   notes?: Record<string, string>;
 }): Promise<{ id: string; amount: number; currency: string }> {
-  const response = await fetch('https://api.razorpay.com/v1/orders', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${Buffer.from(`${KEY_ID}:${KEY_SECRET}`).toString('base64')}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(options),
-  });
+  try {
+    const response = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${Buffer.from(`${KEY_ID}:${KEY_SECRET}`).toString('base64')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(options),
+    });
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Razorpay order creation failed: ${response.status} ${err}`);
+    if (!response.ok) {
+      const raw = await response.text();
+      // Throw safe user message — original details logged server-side only
+      throw new PaymentError(
+        'Payment could not be processed. Please try again.',
+        new Error(`Razorpay order creation failed: ${response.status} ${raw}`),
+      );
+    }
+
+    return response.json();
+  } catch (err) {
+    if (err instanceof PaymentError) throw err;
+    // Network / unexpected errors — wrap in safe message
+    throw new PaymentError(
+      'Payment could not be processed. Please try again.',
+      err,
+    );
   }
-
-  return response.json(); // { id, amount, currency, ... }
 }
 
 /**

@@ -54,10 +54,10 @@ export async function GET(
         totalReviews: reviews.length,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Get employee error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch employee' },
+      { error: (error as Error).message || 'Failed to fetch employee' },
       { status: 500 }
     );
   }

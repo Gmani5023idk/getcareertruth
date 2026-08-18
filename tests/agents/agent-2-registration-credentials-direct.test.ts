@@ -4,7 +4,7 @@
  * This avoids dev server requirements and tests the core registration logic
  */
 
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -43,8 +43,8 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
     try {
       await prisma.$queryRaw`SELECT 1`;
       console.log('✅ Database connected');
-    } catch (error: any) {
-      throw new Error('Database connection required: ' + error.message);
+    } catch (error) {
+      throw new Error('Database connection required: ' + (error as Error).message);
     }
   }, 30000);
 
@@ -117,6 +117,7 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
               collegeName: 'Test University',
               branch: 'Computer Science',
               currentYear: '3',
+              collegeEmail: 'test.student@university.edu',
               targetIndustries: ['Tech'],
               targetCompanies: ['Google'],
               bio: 'Test bio',
@@ -142,9 +143,9 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
         notes = `Student created: ${maskEmail(studentEmail)}, ID: ${user.id.substring(0, 8)}...`;
         console.log(`✅ ${notes}`);
       }
-    } catch (error: any) {
+    } catch (error) {
       status = 'FAIL';
-      notes = `Registration failed: ${error.message}`;
+      notes = `Registration failed: ${(error as Error).message}`;
       console.error(`❌ ${notes}`);
     }
 
@@ -177,7 +178,6 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
               industry: 'Technology',
               yearsExp: 5,
               pricePerCall: 29900,
-              availabilitySlots: JSON.parse('[]'),
               rating: 0,
             },
           },
@@ -200,9 +200,9 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
         notes = `Employee created: ${maskEmail(employeeEmail)}, ID: ${user.id.substring(0, 8)}...`;
         console.log(`✅ ${notes}`);
       }
-    } catch (error: any) {
+    } catch (error) {
       status = 'FAIL';
-      notes = `Registration failed: ${error.message}`;
+      notes = `Registration failed: ${(error as Error).message}`;
       console.error(`❌ ${notes}`);
     }
 
@@ -256,9 +256,9 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
         notes = `Parent created: ${maskEmail(parentEmail)}, ID: ${user.id.substring(0, 8)}...`;
         console.log(`✅ ${notes}`);
       }
-    } catch (error: any) {
+    } catch (error) {
       status = 'FAIL';
-      notes = `Registration failed: ${error.message}`;
+      notes = `Registration failed: ${(error as Error).message}`;
       console.error(`❌ ${notes}`);
     }
 
@@ -288,6 +288,7 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
               collegeName: 'Test',
               branch: 'CS',
               currentYear: '1',
+              collegeEmail: 'verify.test@university.edu',
               targetIndustries: [],
               targetCompanies: [],
               bio: '',
@@ -307,9 +308,9 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
         notes = `emailVerified=${user.emailVerified}, isEmailVerified=${user.isEmailVerified} (expected null/false)`;
         console.error(`❌ ${notes}`);
       }
-    } catch (error: any) {
+    } catch (error) {
       status = 'FAIL';
-      notes = `Test failed: ${error.message}`;
+      notes = `Test failed: ${(error as Error).message}`;
     }
 
     recordCheck('Email Verification State (Credentials)', status, notes);
@@ -339,6 +340,7 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
               collegeName: 'Test',
               branch: 'CS',
               currentYear: '1',
+              collegeEmail: 'first.user@university.edu',
               targetIndustries: [],
               targetCompanies: [],
               bio: '',
@@ -357,14 +359,15 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
             role: 'STUDENT',
             studentProfile: {
               create: {
-                fullName: 'Second User',
-                educationType: 'COLLEGE',
-                collegeName: 'Test',
-                branch: 'CS',
-                currentYear: '2',
-                targetIndustries: [],
-                targetCompanies: [],
-                bio: '',
+              fullName: 'Second User',
+              educationType: 'COLLEGE',
+              collegeName: 'Test',
+              branch: 'CS',
+              currentYear: '2',
+              collegeEmail: 'second.user@university.edu',
+              targetIndustries: [],
+              targetCompanies: [],
+              bio: '',
               },
             },
           },
@@ -373,8 +376,8 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
         status = 'FAIL';
         notes = `Duplicate not rejected - second user created`;
         console.error(`❌ ${notes}`);
-      } catch (dupError: any) {
-        if (dupError.code === 'P2002') {
+      } catch (dupError) {
+        if ((dupError as { code: string }).code === 'P2002') {
           status = 'PASS';
           notes = `Duplicate rejected by DB unique constraint (P2002)`;
           console.log(`✅ ${notes}`);
@@ -382,9 +385,9 @@ describe('Agent 2 - Registration Flow Tester (Credentials) - Direct DB Mode', ()
           throw dupError;
         }
       }
-    } catch (error: any) {
+    } catch (error) {
       status = 'FAIL';
-      notes = `Test failed: ${error.message}`;
+      notes = `Test failed: ${(error as Error).message}`;
       console.error(`❌ ${notes}`);
     }
 

@@ -1,14 +1,16 @@
 'use client';
 
-import { ButtonHTMLAttributes, forwardRef, useRef, useState } from 'react';
+import { forwardRef, useRef, useState } from 'react';
+import type { ComponentPropsWithoutRef } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+interface ButtonProps extends ComponentPropsWithoutRef<'button'> {
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   magnetic?: boolean;
+  children?: React.ReactNode;
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -24,6 +26,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       secondary: 'bg-white/80 dark:bg-surface border border-primary text-primary hover:bg-primary-bg',
       ghost: 'bg-transparent text-text-primary hover:bg-surface-2',
       danger: 'bg-error text-white hover:bg-error/90',
+      outline: 'border border-border text-text-primary hover:bg-surface-2',
     };
 
     const sizes = {
@@ -59,7 +62,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           transition={{ type: 'spring', stiffness: 150, damping: 15, mass: 0.1 }}
           className={cn(baseStyles, variants[variant], sizes[size], className, 'group')}
           disabled={disabled || isLoading}
-          {...(props as any)}
+          {...(props as React.ComponentPropsWithoutRef<typeof motion.button>)}
         >
           {/* Shimmer hover effect */}
           {isHovered && !disabled && (

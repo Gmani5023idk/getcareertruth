@@ -20,7 +20,7 @@ import Button from '@/components/ui/Button';
 
 // --- Types & Initial Data ---
 
-const ICON_MAP: Record<string, any> = {
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Smartphone,
   Globe,
   RotateCw,
@@ -95,7 +95,7 @@ export default function QADashboard() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        const validated = parsed.map((section: any) => {
+        const validated = parsed.map((section: Record<string, unknown>) => {
           let iconName = section.iconName;
           if (!iconName) {
             if (section.title === 'Device Testing') iconName = 'Smartphone';
@@ -127,7 +127,7 @@ export default function QADashboard() {
   const toggleStatus = (sectionIndex: number, itemIndex: number) => {
     const newSections = [...sections];
     const current = newSections[sectionIndex].items[itemIndex].status;
-    const next: any = current === 'PENDING' ? 'PASS' : current === 'PASS' ? 'FAIL' : 'PENDING';
+    const next: 'PASS' | 'FAIL' | 'PENDING' = current === 'PENDING' ? 'PASS' : current === 'PASS' ? 'FAIL' : 'PENDING';
     newSections[sectionIndex].items[itemIndex].status = next;
     setSections(newSections);
   };

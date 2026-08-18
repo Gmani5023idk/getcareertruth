@@ -1,74 +1,83 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
 import { processTranscript } from '@/lib/transcript-ai';
+import { apiHandler, success } from '@/lib/api-handler';
+import { processTranscriptSchema } from '@/shared/schemas/transcript.schema';
 
-const prisma = new PrismaClient();
-
-/**
- * Process transcript with AI
- */
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
+/** POST /api/transcripts/process — Process a transcript with AI */
+export const POST = apiHandler({
+  requireAuth: true,
+  schema: processTranscriptSchema,
+  handler: async ({ body }) => {
     const { bookingId } = body;
 
-    if (!bookingId) {
-      return NextResponse.json(
-        { error: 'Booking ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // Get booking details
+    // Get booking with transcript
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
-      include: {
-        transcript: true,
-      },
+      include: { transcript: true },
     });
 
     if (!booking) {
       return NextResponse.json(
-        { error: 'Booking not found' },
+        { success: false, error: 'Booking not found', code: 'NOT_FOUND' },
         { status: 404 }
       );
     }
 
     if (!booking.transcript) {
       return NextResponse.json(
-        { error: 'Transcript not found for this booking' },
+        { success: false, error: 'Transcript not found for this booking', code: 'NOT_FOUND' },
         { status: 404 }
       );
     }
 
-    // Process transcript with AI
-    const aiResults = await processTranscript(booking.transcript.content);
-
-    // Update transcript with AI results
-    const updatedTranscript = await prisma.transcript.update({
-      where: { id: booking.transcript.id },
-      data: {
-        summary: aiResults.summary,
-        keyPoints: aiResults.keyPoints,
-        actionItems: aiResults.actionItems,
-        sentiment: aiResults.sentiment.overall,
-        sentimentConfidence: aiResults.sentiment.confidence,
-        topics: aiResults.sentiment.topics,
-      },
+    // Set aiStatus to PROCESSING
+    await prisma.booking.update({
+      where: { id: bookingId },
+      data: { aiStatus: 'PROCESSING' },
     });
 
-    return NextResponse.json(
-      {
+    try {
+      // Process transcript with AI
+      const aiResults = await processTranscript(booking.transcript.content);
+
+      // Update transcript with AI results
+      const updatedTranscript = await prisma.transcript.update({
+        where: { id: booking.transcript.id },
+        data: {
+          summary: aiResults.summary,
+          keyPoints: aiResults.keyPoints,
+          actionItems: aiResults.actionItems,
+          sentiment: aiResults.sentiment.overall,
+          sentimentConfidence: aiResults.sentiment.confidence,
+          topics: aiResults.sentiment.topics,
+        },
+      });
+
+      // Mark aiStatus as COMPLETED
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: { aiStatus: 'COMPLETED' },
+      });
+
+      return success({
         message: 'Transcript processed successfully',
         transcript: updatedTranscript,
-      },
-      { status: 200 }
-    );
-  } catch (error: any) {
-    console.error('Process transcript error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to process transcript' },
-      { status: 500 }
-    );
-  }
-}
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown AI processing error';
+      console.error('Process transcript error:', error);
+
+      // Mark aiStatus as FAILED
+      await prisma.booking.update({
+        where: { id: bookingId },
+        data: { aiStatus: 'FAILED', aiError: errorMessage },
+      });
+
+      return NextResponse.json(
+        { success: false, error: 'Failed to process transcript', code: 'INTERNAL_ERROR' },
+        { status: 500 }
+      );
+    }
+  },
+});

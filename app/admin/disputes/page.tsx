@@ -40,8 +40,8 @@ export default function AdminDisputesPanel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to fetch disputes');
       setDisputes(data);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -63,8 +63,8 @@ export default function AdminDisputesPanel() {
 
       toast.success(outcome === 'RESOLVED_PAY' ? 'Payout approved!' : 'Refund processed successfully!');
       setDisputes(prev => prev.filter(d => d.id !== bookingId));
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setProcessingId(null);
     }

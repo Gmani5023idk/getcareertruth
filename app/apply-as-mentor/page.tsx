@@ -44,8 +44,8 @@ export default function MentorApplicationForm() {
 
       toast.success("Application submitted! We'll review and notify you within 48 hours.");
       router.push('/student'); // Redirect to dashboard
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setLoading(false);
     }

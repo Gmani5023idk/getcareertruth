@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 import { createRazorpayPayout, rupeesToPaise } from '@/lib/razorpay';
 import { sendEmail } from '@/lib/email';
+import { decrypt } from '@/lib/encryption';
+import { auditLog, AuditAction } from '@/lib/audit-log';
+import { authorizeRoute } from '@/lib/auth-utils';
 
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session?.user?.id || (session.user as any).role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const authErr = authorizeRoute(session, ['ADMIN']);
+    if (authErr) return authErr;
 
     const body = await req.json();
     const { bookingId } = body;
@@ -52,10 +56,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Mentor application not found' }, { status: 404 });
     }
 
-    // 4. Senior must have payout details
-    if (!mentorApp.upiId && (!mentorApp.bankAccountNumber || !mentorApp.bankIFSC)) {
+    // 4. Senior must have payout details (check encrypted fields)
+    const hasEncryptedPayout = mentorApp.upiEncrypted || (mentorApp.bankAccountEncrypted && mentorApp.bankIfscEncrypted);
+    if (!hasEncryptedPayout) {
       return NextResponse.json({ error: 'Payout details missing' }, { status: 400 });
     }
+
+    // Decrypt payout details for processing
+    const decryptedUpi = mentorApp.upiEncrypted ? decrypt(mentorApp.upiEncrypted) : null;
+    const decryptedBankAccount = mentorApp.bankAccountEncrypted ? decrypt(mentorApp.bankAccountEncrypted) : null;
+    const decryptedIfsc = mentorApp.bankIfscEncrypted ? decrypt(mentorApp.bankIfscEncrypted) : null;
 
     // Set status to PROCESSING
     await prisma.booking.update({
@@ -103,8 +113,18 @@ export async function POST(req: NextRequest) {
         `,
       });
 
+      // Audit log for successful payout
+      await auditLog({
+        userId: session!.user.id,
+        action: AuditAction.PAYMENT_SUCCESS,
+        entity: 'Booking',
+        entityId: bookingId,
+        metadata: { payoutId, amount: booking.employeePayout },
+        success: true,
+      });
+
       return NextResponse.json({ status: 'PAID', payoutId });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Razorpay payout error:', error);
       
       await prisma.booking.update({
@@ -117,7 +137,7 @@ export async function POST(req: NextRequest) {
         data: {
           bookingId,
           status: 'FAILED',
-          razorpayResponse: { error: error.message },
+          razorpayResponse: { error: (error as Error).message },
         },
       });
 
@@ -129,9 +149,19 @@ export async function POST(req: NextRequest) {
         html: `<p>Your payout of ₹${booking.employeePayout} failed. Our team will look into it and retry shortly.</p>`,
       });
 
-      return NextResponse.json({ error: 'Payout failed', detail: error.message }, { status: 500 });
+      // Audit log for failed payout
+      await auditLog({
+        userId: session!.user.id,
+        action: AuditAction.PAYMENT_FAILED,
+        entity: 'Booking',
+        entityId: bookingId,
+        metadata: { error: (error as Error).message, amount: booking.employeePayout },
+        success: false,
+      });
+
+      return NextResponse.json({ error: 'Payout failed', detail: (error as Error).message }, { status: 500 });
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Payout initiate error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

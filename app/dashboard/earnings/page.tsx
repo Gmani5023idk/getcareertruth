@@ -35,8 +35,8 @@ export default function MentorEarningsDashboard() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Failed to load earnings');
       setData(result);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setLoading(false);
     }

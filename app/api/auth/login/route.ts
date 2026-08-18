@@ -1,13 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loginSchema } from '@/shared/schemas/auth.schema';
 import { validateUser } from '@/lib/auth';
+import { checkRateLimit, loginRateLimit, extractClientIp } from '@/lib/ratelimit';
+import { auditLog, AuditAction } from '@/lib/audit-log';
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting: 5 attempts per 15 minutes per IP
+    const ip = extractClientIp(req);
+    const rateLimitResult = await checkRateLimit(loginRateLimit, ip, 'login');
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        { error: 'Too many login attempts. Please try again later.' },
+        { status: 429, headers: rateLimitResult.headers }
+      );
+    }
+
     const body = await req.json();
     const validatedData = loginSchema.parse(body);
 
     const user = await validateUser(validatedData.email, validatedData.password);
+
+    // Audit log for successful login
+    await auditLog({
+      userId: user.id,
+      action: AuditAction.USER_LOGIN,
+      entity: 'User',
+      entityId: user.id,
+      ipAddress: ip,
+      success: true,
+    });
 
     return NextResponse.json(
       {
@@ -22,20 +44,42 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error) {
     let message = 'An unexpected error occurred';
     let status = 500;
 
-    if (error.name === 'ZodError') {
+    if ((error as Error).name === 'ZodError') {
       message = 'Invalid input data';
       status = 400;
-    } else if (error.message === 'USER_NOT_FOUND') {
+    } else if ((error as Error).message === 'USER_NOT_FOUND') {
       message = 'No account found with this email';
       status = 401;
-    } else if (error.message === 'INVALID_PASSWORD') {
+      // Audit log for failed login
+      try {
+        const body = await req.clone().json().catch(() => ({}));
+        await auditLog({
+          action: AuditAction.USER_LOGIN_FAILED,
+          entity: 'User',
+          metadata: { email: body.email, reason: 'USER_NOT_FOUND' },
+          ipAddress: extractClientIp(req),
+          success: false,
+        });
+      } catch {}
+    } else if ((error as Error).message === 'INVALID_PASSWORD') {
       message = 'Incorrect password';
       status = 401;
-    } else if (error.message === 'SOCIAL_AUTH_ONLY') {
+      // Audit log for failed login
+      try {
+        const body = await req.clone().json().catch(() => ({}));
+        await auditLog({
+          action: AuditAction.USER_LOGIN_FAILED,
+          entity: 'User',
+          metadata: { email: body.email, reason: 'INVALID_PASSWORD' },
+          ipAddress: extractClientIp(req),
+          success: false,
+        });
+      } catch {}
+    } else if ((error as Error).message === 'SOCIAL_AUTH_ONLY') {
       message = 'Please use Google to sign in to this account';
       status = 401;
     }

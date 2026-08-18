@@ -42,8 +42,8 @@ export default function MentorProfilePage({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Mentor not found');
       setMentor(data);
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -76,8 +76,8 @@ export default function MentorProfilePage({
       }
       toast.success('Booking request created! Proceeding to payment...');
       router.push(`/booking/${data.booking.id}`);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create booking. Please try again.');
+    } catch (error) {
+      toast.error((error as Error).message || 'Failed to create booking. Please try again.');
     } finally {
       setSubmitting(false);
     }

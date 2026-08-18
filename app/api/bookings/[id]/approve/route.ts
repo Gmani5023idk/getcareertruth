@@ -42,7 +42,7 @@ export async function PUT(
     });
 
     return NextResponse.json({ booking: updated });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Approve booking error:', error);
     return NextResponse.json(
       { error: 'Failed to approve booking' },

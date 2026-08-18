@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 import { prisma } from '@/lib/db';
 import { sendEmail } from '@/lib/email';
+import { decrypt, maskSensitive } from '@/lib/encryption';
+import { logAdminAction } from '@/lib/audit-log';
+import { adminRateLimit, extractClientIp } from '@/lib/ratelimit';
+import { authorizeRoute } from '@/lib/auth-utils';
+import { validateCsrf } from '@/lib/csrf';
 
 export async function PATCH(
   req: NextRequest,
@@ -9,13 +16,27 @@ export async function PATCH(
 ) {
   try {
     const session = await auth();
-    if (!session?.user?.id || (session.user as any).role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const authErr = authorizeRoute(session, ['ADMIN']);
+    if (authErr) return authErr;
+
+    // Defence-in-depth: admin rate limiting
+    const clientIp = extractClientIp(req);
+    try {
+      const result = await adminRateLimit.limit(`admin:handler:${clientIp}`);
+      if (!result.success) {
+        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+      }
+    } catch (rateLimitError) {
+      console.error('Admin rate limit error (allowing):', rateLimitError);
     }
 
     const { id } = await params;
     const body = await req.json();
     const { action, rejectionReason } = body;
+
+    // CSRF check for mutation
+    const csrfError = validateCsrf(req);
+    if (csrfError) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const application = await prisma.mentorApplication.findUnique({
       where: { id },
@@ -27,7 +48,9 @@ export async function PATCH(
     }
 
     if (action === 'APPROVE') {
-      if (!application.upiId && (!application.bankAccountNumber || !application.bankIFSC)) {
+      // Decrypt bank details to check if payout details exist
+      const hasPayout = application.upiEncrypted || (application.bankAccountEncrypted && application.bankIfscEncrypted);
+      if (!hasPayout) {
         return NextResponse.json({ error: 'Cannot approve without payout details' }, { status: 400 });
       }
 
@@ -44,6 +67,16 @@ export async function PATCH(
           },
         }),
       ]);
+
+      // Audit log
+      await logAdminAction(
+        session!.user.id as string,
+        'APPROVE_APPLICATION',
+        'MentorApplication',
+        id,
+        { status: 'PENDING_ADMIN_REVIEW' },
+        { status: 'APPROVED' },
+      );
 
       await sendEmail({
         to: application.user.email as string,
@@ -70,6 +103,16 @@ export async function PATCH(
         },
       });
 
+      // Audit log
+      await logAdminAction(
+        session!.user.id as string,
+        'REJECT_APPLICATION',
+        'MentorApplication',
+        id,
+        { status: 'PENDING_ADMIN_REVIEW' },
+        { status: 'REJECTED', rejectionReason },
+      );
+
       await sendEmail({
         to: application.user.email as string,
         subject: 'Mentor Application Status Update',
@@ -90,7 +133,7 @@ export async function PATCH(
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Mentor application update error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

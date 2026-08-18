@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
 import { otpSchema } from '@/shared/schemas/auth.schema';
 import { Resend } from 'resend';
-
-const prisma = new PrismaClient();
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Generate 6-digit OTP
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
           { message: 'OTP sent successfully' },
           { status: 200 }
         );
-      } catch (emailError: any) {
+      } catch (emailError) {
         console.error('Email send error:', emailError);
         return NextResponse.json(
           { error: 'Failed to send OTP email' },
@@ -125,10 +125,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('OTP error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to process OTP request' },
+      { error: (error as Error).message || 'Failed to process OTP request' },
       { status: 500 }
     );
   }

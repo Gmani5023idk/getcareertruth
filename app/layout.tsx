@@ -7,6 +7,7 @@ import SmoothScrollProvider from '@/components/animations/SmoothScrollProvider';
 import RouteTransitionProvider from '@/components/animations/RouteTransitionProvider';
 import ScrollProgressBar from '@/components/animations/ScrollProgressBar';
 import ParticleBackground from '@/components/animations/ParticleBackground';
+import SentryErrorBoundary from '@/components/sentry/ErrorBoundary';
 
 export const metadata: Metadata = {
   title: 'GetCareerTruth - Career advice you can actually trust',
@@ -57,12 +58,14 @@ export default function RootLayout({
             <SmoothScrollProvider>
               <RouteTransitionProvider>
                 <div className="flex flex-col min-h-screen relative z-10">
+<SentryErrorBoundary>
                   <main id="main-content" className="flex-1 pb-16 sm:pb-0">
                     {children}
                   </main>
-                  
+
                   {/* Global Mobile Bottom Navigation */}
                   <BottomNav />
+                </SentryErrorBoundary>
                 </div>
               </RouteTransitionProvider>
             </SmoothScrollProvider>

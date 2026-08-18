@@ -1,21 +1,27 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { auth } from '@/lib/auth';
+import { apiHandler, success, type HandlerSession } from '@/lib/api-handler';
+import { bookingSchema } from '@/shared/schemas/auth.schema';
 
-export async function GET(req: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+/** GET /api/bookings — List bookings for the authenticated user (role-aware) */
+export const GET = apiHandler({
+  requireAuth: true,
+  handler: async ({ req, session }) => {
+    // session is guaranteed non-null when requireAuth: true
+    const user = session as HandlerSession;
 
-    const { searchParams } = new URL(req.url);
-    const status = searchParams.get('status');
+    // Parse pagination params with safe defaults and bounds
+    const rawPage = req.nextUrl.searchParams.get('page');
+    const rawLimit = req.nextUrl.searchParams.get('limit');
+    const page = Math.max(1, parseInt(rawPage ?? '1', 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(rawLimit ?? '20', 10) || 20));
+    const skip = (page - 1) * limit;
 
-    const userId = session.user.id;
-    const userRole = (session.user as any).role;
+    const status = req.nextUrl.searchParams.get('status') ?? undefined;
+    const userId = user.user.id;
+    const userRole = user.user.role;
 
-    let where: any = {};
+    const where: Record<string, unknown> = {};
 
     // Filter by user role and ID
     if (userRole === 'EMPLOYEE') {
@@ -31,74 +37,89 @@ export async function GET(req: NextRequest) {
       where.status = status;
     }
 
-    const bookings = await prisma.booking.findMany({
-      where,
-      include: {
-        employee: {
-          include: {
-            employeeProfile: {
-              select: {
-                fullName: true,
-                jobTitle: true,
-                company: true,
-              },
-            },
-          },
-        },
-        student: {
-          include: {
-            studentProfile: {
-              select: {
-                fullName: true,
-              },
-            },
-          },
-        },
-        parent: {
-          include: {
-            parentProfile: {
-              select: {
-                fullName: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        scheduledAt: 'desc',
-      },
-    });
+    let bookings: Awaited<ReturnType<typeof prisma.booking.findMany>> = [];
+    let total = 0;
 
-    return NextResponse.json({ bookings });
-  } catch (error: any) {
-    console.error('List bookings error:', error);
+    try {
+      [bookings, total] = await Promise.all([
+        prisma.booking.findMany({
+          where,
+          skip,
+          take: limit,
+          include: {
+            employee: {
+              include: {
+                employeeProfile: {
+                  select: {
+                    fullName: true,
+                    jobTitle: true,
+                    company: true,
+                  },
+                },
+              },
+            },
+            student: {
+              include: {
+                studentProfile: {
+                  select: {
+                    fullName: true,
+                  },
+                },
+              },
+            },
+            parent: {
+              include: {
+                parentProfile: {
+                  select: {
+                    fullName: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: {
+            scheduledAt: 'desc',
+          },
+        }),
+        prisma.booking.count({ where }),
+      ]);
+    } catch (err) {
+      // Prisma errors are handled by apiHandler's catch-all,
+      // but we log here for extra context
+      console.error('[GET /api/bookings] Prisma error:', err);
+      throw err;
+    }
+
+    const totalPages = Math.ceil(total / limit);
+
     return NextResponse.json(
-      { error: 'Failed to list bookings' },
-      { status: 500 }
+      {
+        success: true,
+        data: { bookings },
+        pagination: { page, limit, total, totalPages },
+      },
+      {
+        headers: {
+          // Cache privately (user-specific data) for 10 seconds;
+          // stale-while-revalidate lets clients serve while fetching fresh data
+          'Cache-Control': 'private, max-age=10, stale-while-revalidate=30',
+        },
+      }
     );
-  }
-}
+  },
+});
 
-export async function POST(req: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await req.json();
-    const { employeeId, scheduledAt, durationMins = 15, topic, notes, amountPaid = 0 } = body;
-
-    if (!employeeId || !scheduledAt) {
-      return NextResponse.json(
-        { error: 'Missing required fields: employeeId, scheduledAt' },
-        { status: 400 }
-      );
-    }
+/** POST /api/bookings — Create a new booking (student/parent only) */
+export const POST = apiHandler({
+  requireAuth: true,
+  schema: bookingSchema,
+  handler: async ({ body, session }) => {
+    const sess = session as import('@/lib/api-handler').HandlerSession;
+    const { employeeId, scheduledAt, topic, durationMins, notes, amountPaid } = body;
 
     // Fetch user with profile
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: sess.user.id },
       include: {
         studentProfile: true,
         parentProfile: true,
@@ -106,7 +127,10 @@ export async function POST(req: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: 'User not found', code: 'NOT_FOUND' },
+        { status: 404 }
+      );
     }
 
     // Determine studentId or parentId based on role
@@ -119,7 +143,7 @@ export async function POST(req: NextRequest) {
       parentId = user.id;
     } else {
       return NextResponse.json(
-        { error: 'User role not allowed to book or profile incomplete' },
+        { success: false, error: 'User role not allowed to book or profile incomplete', code: 'FORBIDDEN' },
         { status: 403 }
       );
     }
@@ -128,7 +152,7 @@ export async function POST(req: NextRequest) {
     const scheduledAtDate = new Date(scheduledAt);
     if (isNaN(scheduledAtDate.getTime())) {
       return NextResponse.json(
-        { error: 'Invalid scheduledAt format (use ISO string)' },
+        { success: false, error: 'Invalid scheduledAt format (use ISO string)', code: 'VALIDATION_ERROR' },
         { status: 400 }
       );
     }
@@ -149,26 +173,20 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return NextResponse.json({ booking }, { status: 201 });
-    } catch (error: any) {
+      return success({ booking }, 201);
+    } catch (error) {
       // Unique constraint violation (double booking)
-      if (error.code === 'P2002' || error.meta?.target?.includes('employeeId_scheduledAt')) {
+      const prismaError = error as { code?: string; meta?: { target?: string[] } };
+      if (
+        prismaError.code === 'P2002' ||
+        prismaError.meta?.target?.includes('employeeId_scheduledAt')
+      ) {
         return NextResponse.json(
-          { error: 'Selected time slot is already booked' },
+          { success: false, error: 'Selected time slot is already booked', code: 'CONFLICT' },
           { status: 409 }
         );
       }
-      console.error('Create booking error:', error);
-      return NextResponse.json(
-        { error: 'Failed to create booking' },
-        { status: 500 }
-      );
+      throw error; // Let apiHandler catch-all handle the rest
     }
-  } catch (error: any) {
-    console.error('Booking error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
+  },
+});

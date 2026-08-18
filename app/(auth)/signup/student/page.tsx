@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Lock, Eye, EyeOff, GraduationCap, Building2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { signIn } from 'next-auth/react';
+import { z } from 'zod';
 import { signupBasicSchema, studentEducationSchema, studentGoalsSchema } from '@/shared/schemas/auth.schema';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -90,10 +91,10 @@ export default function StudentSignupPage() {
 
     if (result && !result.success) {
       const newErrors: Record<string, string> = {};
-      const issues = result.error?.issues || (result.error as any)?.errors || [];
-      issues.forEach((err: any) => {
+      const issues = result.error?.issues ?? [];
+      issues.forEach((err: z.ZodIssue) => {
         if (err.path && err.path[0]) {
-          newErrors[err.path[0].toString()] = err.message;
+          newErrors[err.path[0].toString()] = (err as unknown as Error).message;
         }
       });
       setFieldErrors(newErrors);

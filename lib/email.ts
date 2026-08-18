@@ -4,13 +4,38 @@
  * Provides simple wrapper for Resend API and common templates
  * for GetCareerTruth notifications.
  *
+ * The underlying Resend HTTP call is wrapped with automatic retry
+ * (exponential backoff) so transient network failures or Resend API
+ * rate limits don't cause silent email delivery failures.
+ *
  * Environment variables:
  * - RESEND_API_KEY
  * - RESEND_FROM (optional, default: noreply@getcareertruth.com)
  */
 
+import { withRetry } from '@/lib/retry';
+
 const RESEND_API_KEY = process.env.RESEND_API_KEY!;
 const DEFAULT_FROM = process.env.RESEND_FROM || 'noreply@getcareertruth.com';
+
+/**
+ * Determine if a Resend API error is retryable.
+ * - 429 (rate limited) → retry
+ * - 5xx (server errors) → retry
+ * - 4xx (client errors like 401, 403, 422) → don't retry (won't succeed)
+ */
+function isRetryableEmailError(error: unknown): boolean {
+  if (error instanceof Error && error.message.startsWith('Resend error:')) {
+    const match = error.message.match(/(\d{3})/);
+    if (match) {
+      const status = parseInt(match[1], 10);
+      // Retry on 429 (rate limit) and 5xx (server errors)
+      return status === 429 || status >= 500;
+    }
+  }
+  // Network errors (TypeError: fetch failed) are always retryable
+  return true;
+}
 
 async function sendResendEmail({
   to,
@@ -29,27 +54,34 @@ async function sendResendEmail({
     throw new Error('Missing RESEND_API_KEY');
   }
 
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to,
-      subject,
-      html,
-      text,
-    }),
+  return withRetry(async () => {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to,
+        subject,
+        html,
+        text,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Resend error: ${response.status} ${err}`);
+    }
+
+    return response.json();
+  }, {
+    maxRetries: 2,
+    baseDelayMs: 1000,
+    label: 'email.sendResendEmail',
+    shouldRetry: isRetryableEmailError,
   });
-
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Resend error: ${response.status} ${err}`);
-  }
-
-  return response.json();
 }
 
 // Specific templates
@@ -140,6 +172,39 @@ export async function sendEmployeeApprovalEmail({
     </div>
   `;
   const text = `New booking request:\nStudent: ${studentName}\nTopic: ${topic}\nTime: ${scheduledAt.toUTCString()}\nPlease confirm in dashboard to enable payment.`;
+
+  return sendResendEmail({ to, subject, html, text });
+}
+
+export async function sendRefundConfirmationEmail({
+  to,
+  employeeName,
+  refundAmount,
+  reason,
+  bookingTopic,
+}: {
+  to: string;
+  employeeName: string;
+  refundAmount: number;
+  reason?: string;
+  bookingTopic: string;
+}) {
+  const subject = 'Refund processed — GetCareerTruth';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px;">
+      <h2 style="color: #2d3748;">Your refund has been processed</h2>
+      <p>Hello,</p>
+      <p>A refund has been issued for your session with <strong>${employeeName}</strong>.</p>
+      <p><strong>Topic:</strong> ${bookingTopic}<br/>
+         <strong>Amount refunded:</strong> ₹${refundAmount.toLocaleString('en-IN')}<br/>
+         ${reason ? `<strong>Reason:</strong> ${reason}<br/>` : ''}
+         <strong>Timeline:</strong> The amount will be credited to your original payment method within 5–7 business days.
+      </p>
+      <p>If you have any questions, please contact our support team.</p>
+      <p>Best regards,<br/>GetCareerTruth Team</p>
+    </div>
+  `;
+  const text = `Your refund has been processed.\n\nSession: ${bookingTopic}\nMentor: ${employeeName}\nAmount refunded: ₹${refundAmount.toLocaleString('en-IN')}\n${reason ? `Reason: ${reason}\n` : ''}The amount will be credited within 5–7 business days.`;
 
   return sendResendEmail({ to, subject, html, text });
 }

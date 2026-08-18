@@ -46,32 +46,39 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
       tilt: 'bg-surface border border-border transition-shadow duration-300',
     };
 
-    const Component = variant === 'tilt' ? motion.div : 'div';
-    const tiltProps = variant === 'tilt' ? {
-      animate: { rotateX: rotate.x, rotateY: rotate.y },
-      transition: { type: 'spring' as const, stiffness: 200, damping: 20 },
-      style: { transformStyle: 'preserve-3d' as const, perspective: '1000px' as const },
-      onMouseMove: handleMouseMove,
-      onMouseEnter: () => setIsHovered(true),
-      onMouseLeave: handleMouseLeave,
-    } : {};
+    const isTilt = variant === 'tilt';
+
+    if (isTilt) {
+      return (
+        <motion.div
+          ref={localRef}
+          className={cn('rounded-2xl relative overflow-hidden', variants.tilt, className)}
+          animate={{ rotateX: rotate.x, rotateY: rotate.y }}
+          transition={{ type: 'spring' as const, stiffness: 200, damping: 20 }}
+          style={{ transformStyle: 'preserve-3d' as const, perspective: '1000px' as const }}
+          onMouseMove={handleMouseMove}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={handleMouseLeave}
+        >
+          {isHovered && (
+            <div
+              className="pointer-events-none absolute inset-0 transition-opacity duration-500"
+              style={{
+                background: `radial-gradient(600px circle at ${glowPos.x}% ${glowPos.y}%, rgba(0,180,216,0.08), transparent 40%)`,
+              }}
+            />
+          )}
+          {children}
+        </motion.div>
+      );
+    }
 
     return (
-      <Component
-        ref={variant === 'tilt' ? localRef : ref as any}
+      <div
+        ref={ref}
         className={cn('rounded-2xl relative overflow-hidden', variants[variant] || variants.default, className)}
-        {...tiltProps}
+        {...props}
       >
-        {/* Glow effect for tilt variant */}
-        {variant === 'tilt' && isHovered && (
-          <div
-            className="pointer-events-none absolute inset-0 transition-opacity duration-500"
-            style={{
-              background: `radial-gradient(600px circle at ${glowPos.x}% ${glowPos.y}%, rgba(0,180,216,0.08), transparent 40%)`,
-            }}
-          />
-        )}
-        
         {/* Grain texture for glass variant */}
         {variant === 'glass' && (
           <div className="pointer-events-none absolute inset-0 opacity-[0.03] dark:opacity-[0.06]"
@@ -82,7 +89,7 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
         )}
 
         {children}
-      </Component>
+      </div>
     );
   }
 );

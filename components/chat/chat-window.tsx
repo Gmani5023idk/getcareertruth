@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Paperclip, MoreVertical, Phone, Video } from 'lucide-react';
 import Button from '@/components/ui/Button';
@@ -53,25 +53,32 @@ export function ChatWindow({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Handle typing indicator
-  useEffect(() => {
-    if (messageInput.length > 0 && !isTyping) {
-      setIsTyping(true);
-      onTypingStart?.();
-    } else if (messageInput.length === 0 && isTyping) {
-      setIsTyping(false);
-      onTypingStop?.();
-    }
-  }, [messageInput, isTyping, onTypingStart, onTypingStop]);
+  // Handle typing indicator — use ref to avoid synchronous setState in effect
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    useEffect(() => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        if (messageInput.length > 0 && !isTyping) {
+          setIsTyping(true);
+          onTypingStart?.();
+        } else if (messageInput.length === 0 && isTyping) {
+          setIsTyping(false);
+          onTypingStop?.();
+        }
+      }, 300);
+      return () => {
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      };
+    }, [messageInput, isTyping, onTypingStart, onTypingStop]);
 
-  const handleSendMessage = () => {
-    if (messageInput.trim() && !disabled) {
-      onSendMessage(messageInput.trim());
-      setMessageInput('');
-      setIsTyping(false);
-      onTypingStop?.();
-    }
-  };
+    const handleSendMessage = useCallback(() => {
+        if (messageInput.trim() && !disabled) {
+          onSendMessage(messageInput.trim());
+          setMessageInput('');
+          setIsTyping(false);
+          onTypingStop?.();
+        }
+      }, [messageInput, disabled, onSendMessage, onTypingStop]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {

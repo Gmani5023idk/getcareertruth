@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
 }
 
@@ -22,18 +22,24 @@ model User {
   profilePhoto       String?
   emailVerified      DateTime?
   isDeleted          Boolean                   @default(false)
+  isBanned           Boolean                   @default(false)
   accounts           Account[]
+  auditLogs          AuditLog[]
   bookingsAsEmployee Booking[]                 @relation("EmployeeBookings")
   bookingsAsParent   Booking[]                 @relation("ParentBookings")
   bookingsAsStudent  Booking[]                 @relation("StudentBookings")
   sentMessages       ChatMessage[]             @relation("SentMessages")
   conversations      ConversationParticipant[]
   employeeProfile    EmployeeProfile?
+  mentorApplications MentorApplication[]
+  mentorProfile      MentorProfile?
   parentProfile      ParentProfile?
   sessions           Session[]
   studentProfile     StudentProfile?
-  mentorProfile      MentorProfile?
-  mentorApplications MentorApplication[]
+  idVerifications    IdVerification[]
+
+  @@index([role])
+  @@index([role, createdAt])
 }
 
 model StudentProfile {
@@ -56,47 +62,46 @@ model StudentProfile {
   bio               String?       @db.VarChar(150)
   savedEmployees    String[]
   createdAt         DateTime      @default(now())
+  email             String?
+  phone             String?
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model EmployeeProfile {
-  id                     String             @id @default(cuid())
-  userId                 String             @unique
-  fullName               String
-  company                String
-  jobTitle               String
-  industry               String
-  yearsExp               Int
-  college                String?
-  degree                 String?
-  graduationYear         Int?
-  bio                    String?            @db.VarChar(300)
-  topics                 String[]
-  pricePerCall           Int                @default(29900)
-  linkedInUrl            String?
-  linkedInTitle          String?
-  linkedInCompany        String?
-  isLinkedInVerified     Boolean            @default(false)
-  companyEmail           String?
-  isCompanyEmailVerified Boolean            @default(false)
-  idDocumentUrl          String?
-  idDocumentType         String?
-  isIdVerified           Boolean            @default(false)
-  isTeamVerified         Boolean            @default(false)
-  verificationStatus     VerificationStatus @default(PENDING)
-  availabilitySlots      Json
-  rating                 Float              @default(0)
-  totalCalls             Int                @default(0)
-  totalEarned            Int                @default(0)
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  idDocumentNumber       String?
-  payoutDetails          String?
-  payoutMethod           String?
-  verificationMethod     String?
-  user                   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reviews                Review[]
-  transcripts            Transcript[]
+  id                 String             @id @default(cuid())
+  userId             String             @unique
+  fullName           String
+  company            String
+  jobTitle           String
+  industry           String
+  yearsExp           Int
+  college            String?
+  degree             String?
+  graduationYear     Int?
+  bio                String?            @db.VarChar(300)
+  topics             String[]
+  pricePerCall       Int                @default(0)
+  linkedInUrl        String?
+  linkedInTitle      String?
+  linkedInCompany    String?
+  companyEmail       String?
+  verificationStatus VerificationStatus @default(PENDING)
+  rating             Float              @default(0)
+  totalCalls         Int                @default(0)
+  totalEarned        Int                @default(0)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  payoutDetails      String?
+  payoutMethod       String?
+  verifiedAt         DateTime?
+  verificationNotes  String?
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviews            Review[]
+  transcripts        Transcript[]
+  availabilitySlots  AvailabilitySlot[]
+
+  @@index([verificationStatus])
+  @@index([industry])
 }
 
 model ParentProfile {
@@ -109,56 +114,82 @@ model ParentProfile {
   concerns      String[]
   openToConnect Boolean  @default(true)
   createdAt     DateTime @default(now())
+  email         String?
+  phone         String?
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model AvailabilitySlot {
+  id                String           @id @default(cuid())
+  employeeProfileId String?
+  mentorProfileId   String?
+  dayOfWeek         Int
+  startTime         String
+  endTime           String
+  timezone          String           @default("Asia/Kolkata")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  employeeProfile   EmployeeProfile? @relation(fields: [employeeProfileId], references: [id], onDelete: Cascade)
+  mentorProfile     MentorProfile?   @relation(fields: [mentorProfileId], references: [id], onDelete: Cascade)
+
+  @@index([employeeProfileId])
+  @@index([mentorProfileId])
+  @@index([employeeProfileId, dayOfWeek])
+  @@index([mentorProfileId, dayOfWeek])
+  @@map("availability_slots")
+}
+
 model Booking {
-  id                     String        @id @default(cuid())
+  id                     String          @id @default(cuid())
   studentId              String?
   parentId               String?
   employeeId             String
   scheduledAt            DateTime
-  durationMins           Int           @default(15)
-  status                 BookingStatus @default(PENDING_CONFIRM)
-  topic                  String?       @db.VarChar(300)
+  durationMins           Int             @default(15)
+  status                 BookingStatus   @default(PENDING_CONFIRM)
+  topic                  String?         @db.VarChar(300)
   meetingLink            String?
   razorpayOrderId        String?
   razorpayPaymentId      String?
-  razorpayPayoutId       String?
   amountPaid             Int
-  platformFee            Int           @default(0)
-  employeePayout         Int           @default(0)
-  payoutStatus           PayoutStatus  @default(PENDING)
-  disputeStatus          DisputeStatus @default(NONE)
-  studentMarkedComplete  Boolean       @default(false)
-  employeeMarkedComplete Boolean       @default(false)
+  platformFee            Int             @default(0)
+  employeePayout         Int             @default(0)
+  payoutStatus           PayoutStatus    @default(PENDING)
+  studentMarkedComplete  Boolean         @default(false)
+  employeeMarkedComplete Boolean         @default(false)
   completedAt            DateTime?
   cancelledAt            DateTime?
   cancelReason           String?
   reminderSentAt         DateTime?
   refundAmount           Int?
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
-  conversationId         String?       @unique
-  notes                  String?       @db.VarChar(500)
-  conversation           Conversation? @relation(fields: [conversationId], references: [id])
-  employee               User          @relation("EmployeeBookings", fields: [employeeId], references: [id])
-  parent                 User?         @relation("ParentBookings", fields: [parentId], references: [id])
-  student                User?         @relation("StudentBookings", fields: [studentId], references: [id])
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  conversationId         String?         @unique
+  notes                  String?         @db.VarChar(500)
+  disputeStatus          DisputeStatus   @default(NONE)
+  razorpayPayoutId       String?
+  aiError                String?
+  aiStatus               AiStatus        @default(PENDING)
+  meetingError           String?
+  meetingStatus          MeetingStatus   @default(CREATING)
+  conversation           Conversation?   @relation(fields: [conversationId], references: [id])
+  employee               User            @relation("EmployeeBookings", fields: [employeeId], references: [id])
+  parent                 User?           @relation("ParentBookings", fields: [parentId], references: [id])
+  student                User?           @relation("StudentBookings", fields: [studentId], references: [id])
+  payoutAttempts         PayoutAttempt[]
   review                 Review?
   transcript             Transcript?
-  payoutAttempts         PayoutAttempt[]
 
   @@unique([employeeId, scheduledAt])
-}
-
-model PayoutAttempt {
-  id               String   @id @default(cuid())
-  bookingId        String
-  booking          Booking  @relation(fields: [bookingId], references: [id])
-  attemptedAt      DateTime @default(now())
-  status           String
-  razorpayResponse Json?
+  @@index([status])
+  @@index([employeeId])
+  @@index([employeeId, status])
+  @@index([scheduledAt])
+  @@index([aiStatus])
+  @@index([parentId])
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
+  @@index([studentId])
 }
 
 model Review {
@@ -172,6 +203,8 @@ model Review {
   updatedAt  DateTime        @updatedAt
   booking    Booking         @relation(fields: [bookingId], references: [id])
   employee   EmployeeProfile @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
 }
 
 model Transcript {
@@ -190,6 +223,8 @@ model Transcript {
   updatedAt           DateTime        @updatedAt
   booking             Booking         @relation(fields: [bookingId], references: [id])
   employee            EmployeeProfile @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId])
 }
 
 model Conversation {
@@ -200,6 +235,8 @@ model Conversation {
   booking      Booking?
   messages     ChatMessage[]
   participants ConversationParticipant[]
+
+  @@index([updatedAt])
 }
 
 model ConversationParticipant {
@@ -212,6 +249,7 @@ model ConversationParticipant {
   user           User         @relation(fields: [userId], references: [id])
 
   @@unique([conversationId, userId])
+  @@index([userId])
 }
 
 model ChatMessage {
@@ -226,6 +264,9 @@ model ChatMessage {
   createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   sender         User         @relation("SentMessages", fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
 }
 
 model Account {
@@ -244,6 +285,7 @@ model Account {
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model Session {
@@ -252,6 +294,8 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -260,6 +304,75 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model MentorApplication {
+  id                   String            @id @default(cuid())
+  userId               String
+  collegeName          String
+  currentYear          String
+  branch               String
+  domain               String
+  bio                  String?
+  linkedinUrl          String?
+  sessionRate          Int
+  status               ApplicationStatus @default(PENDING_ADMIN_REVIEW)
+  rejectionReason      String?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  bankAccountEncrypted String?
+  bankIfscEncrypted    String?
+  upiEncrypted         String?
+  user                 User              @relation(fields: [userId], references: [id])
+
+  @@index([status])
+  @@index([userId])
+}
+
+model MentorProfile {
+  id                String             @id @default(cuid())
+  userId            String             @unique
+  photoUrl          String?
+  bio               String?
+  rating            Float              @default(0)
+  reviewsCount      Int                @default(0)
+  user              User               @relation(fields: [userId], references: [id])
+  availabilitySlots AvailabilitySlot[]
+}
+
+model PayoutAttempt {
+  id               String   @id @default(cuid())
+  bookingId        String
+  attemptedAt      DateTime @default(now())
+  status           String
+  razorpayResponse Json?
+  booking          Booking  @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+}
+
+model WebhookEvent {
+  id          String   @id
+  provider    String
+  processedAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  success   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 enum Role {
@@ -304,46 +417,25 @@ enum ApplicationStatus {
   REJECTED
 }
 
+enum MeetingStatus {
+  CREATING
+  ACTIVE
+  FAILED
+  NOT_APPLICABLE
+}
+
+enum AiStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 enum PayoutStatus {
   PENDING
   PROCESSING
   PAID
   FAILED
-}
-
-// -----------------------------------------------------------------------------
-// Mentor application & onboarding data
-// -----------------------------------------------------------------------------
-model MentorApplication {
-  id                String            @id @default(cuid())
-  userId            String
-  user              User              @relation(fields: [userId], references: [id])
-  collegeName       String
-  currentYear       String
-  branch            String
-  domain            String
-  bio               String?
-  linkedinUrl       String?
-  sessionRate       Int // senior-set, ₹ per session
-  // Payout details — MANDATORY before admin can approve
-  bankAccountNumber String?
-  bankIFSC          String?
-  upiId             String?
-  status            ApplicationStatus @default(PENDING_ADMIN_REVIEW)
-  rejectionReason   String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-}
-
-model MentorProfile {
-  id                String @id @default(cuid())
-  userId            String @unique
-  user              User   @relation(fields: [userId], references: [id])
-  photoUrl          String?
-  bio               String?
-  availabilitySlots Json? // Format: [{start:'2026-07-01T09:00:00Z', end:'2026-07-01T10:00:00Z'}]
-  rating            Float  @default(0)
-  reviewsCount      Int    @default(0)
 }
 
 enum ConversationType {
@@ -357,4 +449,40 @@ enum MessageType {
   TEXT
   IMAGE
   FILE
+}
+
+// SEC: ID verification document storage for mentor/employee identity checks.
+// Documents auto-expire after 90 days. Access restricted to admin/verification role.
+enum IdVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum IdDocumentType {
+  AADHAAR
+  PAN
+  PASSPORT
+  DRIVING_LICENCE
+}
+
+model IdVerification {
+  id           String               @id @default(cuid())
+  userId       String
+  documentType IdDocumentType
+  fileUrl      String
+  status       IdVerificationStatus @default(PENDING)
+  reviewedBy   String?              // Admin user ID who reviewed
+  reviewedAt   DateTime?
+  rejectReason String?
+  expiresAt    DateTime             // Auto-purge after 90 days
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
 }
